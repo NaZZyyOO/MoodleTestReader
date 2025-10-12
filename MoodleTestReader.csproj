@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>net9.0-windows</TargetFramework>
+        <Nullable>enable</Nullable>
+        <UseWindowsForms>true</UseWindowsForms>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <UserSecretsId>e39d8f46-95a0-4194-bae1-4d329e58c0d4</UserSecretsId>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <Folder Include="Speech\" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="MySql.Data" Version="9.4.0" />
+        <PackageReference Include="MySqlConnector" Version="2.3.7" />  
+      <Compile Update="UI\Login.cs">
+        <SubType>Form</SubType>
+      </Compile>
+      <Compile Update="UI\Test.cs">
+        <SubType>Form</SubType>
+      </Compile>
+      <Compile Update="UI\Register.cs">
+        <SubType>Form</SubType>
+      </Compile>
+    </ItemGroup>
+
+</Project>

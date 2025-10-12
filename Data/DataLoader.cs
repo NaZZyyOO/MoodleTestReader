@@ -1,0 +1,394 @@
+using System.Security.Cryptography;
+using System.Text;
+using MySql.Data.MySqlClient;
+using MoodleTestReader.Models;
+using System.Text.Json;
+using MoodleTestReader.Logic;
+
+namespace MoodleTestReader.Data
+{
+    public class DataLoader
+    {
+        private const string ConnectionString = "Server=localhost;Database=MoodleTestReader;Uid=root;Pwd=XP18ruthenian;Port=3306";
+
+        public DataLoader()
+        {
+            InitializeDatabase();
+        }
+
+        public void InitializeDatabase()
+        {
+            using (var connection = new MySqlConnection(ConnectionString))
+            {
+                connection.Open();
+                const string createUsersTable = @"
+                    CREATE TABLE IF NOT EXISTS Users (
+                        Id INT AUTO_INCREMENT PRIMARY KEY,
+                        Username VARCHAR(50) NOT NULL UNIQUE,
+                        Password VARCHAR(64) NOT NULL
+                    )";
+                const string createTestsTable = @"
+                    CREATE TABLE IF NOT EXISTS Tests (
+                        Id INT AUTO_INCREMENT PRIMARY KEY,
+                        TestName VARCHAR(100) NOT NULL,
+                        TimeLimit INT NOT NULL
+                    )";
+                const string createQuestionsTable = @"
+                    CREATE TABLE IF NOT EXISTS Questions (
+                        Id INT AUTO_INCREMENT PRIMARY KEY,
+                        TestId INT,
+                        Type VARCHAR(50),
+                        Description TEXT,
+                        CorrectAnswer TEXT,
+                        CorrectAnswers TEXT,
+                        Points INT NOT NULL,
+                        Options TEXT,
+                        FOREIGN KEY (TestId) REFERENCES Tests(Id)
+                    )";
+                const string createResultsTable = @"
+                    CREATE TABLE IF NOT EXISTS Results (
+                        Id INT AUTO_INCREMENT PRIMARY KEY,
+                        UserId INT,
+                        TestId INT,
+                        Score INT,
+                        FOREIGN KEY (UserId) REFERENCES Users(Id),
+                        FOREIGN KEY (TestId) REFERENCES Tests(Id)
+                    )";
+
+                using (var command = new MySqlConnection(ConnectionString))
+                {
+                    command.Open();
+                    using (var cmd = new MySqlCommand(createUsersTable, command))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+                    using (var cmd = new MySqlCommand(createTestsTable, command))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+                    using (var cmd = new MySqlCommand(createQuestionsTable, command))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+                    using (var cmd = new MySqlCommand(createResultsTable, command))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+            }
+        }
+
+        public void CreateUser(string username, string password)
+        {
+            using (var connection = new MySqlConnection(ConnectionString))
+            {
+                connection.Open();
+                const string query = "INSERT INTO Users (Username, Password) VALUES (@username, @password)";
+                using (var command = new MySqlCommand(query, connection))
+                {
+                    command.Parameters.AddWithValue("@username", username);
+                    command.Parameters.AddWithValue("@password", HashPassword(password));
+                    command.ExecuteNonQuery();
+                }
+            }
+        }
+
+        public User AuthenticateUser(string username, string password)
+        {
+            using (var connection = new MySqlConnection(ConnectionString))
+            {
+                connection.Open();
+                const string query = "SELECT Id, Username, Password FROM Users WHERE Username = @username";
+                using (var command = new MySqlCommand(query, connection))
+                {
+                    command.Parameters.AddWithValue("@username", username);
+                    using (var reader = command.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            var storedHash = reader["Password"].ToString();
+                            if (storedHash == HashPassword(password))
+                            {
+                                return new User
+                                (
+                                    Convert.ToInt32(reader["Id"]),
+                                    reader["Username"].ToString(),
+                                    storedHash
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
+        public bool UserExists(string username)
+        {
+            using (var connection = new MySqlConnection(ConnectionString))
+            {
+                connection.Open();
+                const string query = "SELECT COUNT(*) FROM Users WHERE Username = @username";
+                using (var command = new MySqlCommand(query, connection))
+                {
+                    command.Parameters.AddWithValue("@username", username);
+                    return Convert.ToInt64(command.ExecuteScalar()) > 0;
+                }
+            }
+        }
+
+        public List<Test> GetAvailableTests()
+        {
+            var tests = new List<Test>();
+            using (var connection = new MySqlConnection(ConnectionString))
+            {
+                connection.Open();
+                const string query = "SELECT Id, TestName, TimeLimit FROM Tests";
+                using (var command = new MySqlCommand(query, connection))
+                {
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            var test = new Test(
+                                Convert.ToInt32(reader["Id"]),
+                                reader["TestName"].ToString(),
+                                new List<Question>(),
+                                Convert.ToInt32(reader["TimeLimit"])
+                            );
+                            tests.Add(test);
+                        }
+                    }
+                }
+
+                foreach (var test in tests)
+                {
+                    const string questionQuery = "SELECT Id, Type, Description, CorrectAnswer, CorrectAnswers, Points, Options FROM Questions WHERE TestId = @testId";
+                    using (var command = new MySqlCommand(questionQuery, connection))
+                    {
+                        command.Parameters.AddWithValue("@testId", test.Id);
+                        using (var reader = command.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                Question question;
+                                var type = reader["Type"].ToString();
+                                var options = !string.IsNullOrEmpty(reader["Options"].ToString())
+                                    ? JsonSerializer.Deserialize<List<string>>(reader["Options"].ToString())
+                                    : new List<string>();
+
+                                switch (type)
+                                {
+                                    case "SingleChoice":
+                                        question = new Question
+                                        {
+                                            Id = Convert.ToInt32(reader["Id"]),
+                                            question = reader["Description"].ToString(),
+                                            Points = Convert.ToInt32(reader["Points"]),
+                                            Options = options,
+                                            CorrectAnswer = reader["CorrectAnswer"].ToString()
+                                        };
+                                        break;
+                                    case "MultipleChoice":
+                                        question = new MultipleChoiceQuestion
+                                        {
+                                            Id = Convert.ToInt32(reader["Id"]),
+                                            question = reader["Description"].ToString(),
+                                            Points = Convert.ToInt32(reader["Points"]),
+                                            Options = options,
+                                            CorrectAnswers = !string.IsNullOrEmpty(reader["CorrectAnswers"].ToString())
+                                                ? JsonSerializer.Deserialize<List<string>>(reader["CorrectAnswers"].ToString())
+                                                : new List<string>()
+                                        };
+                                        break;
+                                    case "FillInBlank":
+                                        question = new FillInBlankQuestion
+                                        {
+                                            Id = Convert.ToInt32(reader["Id"]),
+                                            question = reader["Description"].ToString(),
+                                            Points = Convert.ToInt32(reader["Points"]),
+                                            Options = options,
+                                            CorrectAnswers = !string.IsNullOrEmpty(reader["CorrectAnswers"].ToString())
+                                                ? JsonSerializer.Deserialize<List<string>>(reader["CorrectAnswers"].ToString())
+                                                : new List<string>()
+                                        };
+                                        break;
+                                    case "TrueFalse":
+                                        question = new TrueFalseQuestion
+                                        {
+                                            Id = Convert.ToInt32(reader["Id"]),
+                                            question = reader["Description"].ToString(),
+                                            Points = Convert.ToInt32(reader["Points"]),
+                                            Options = options,
+                                            Answer = bool.Parse(reader["CorrectAnswer"].ToString())
+                                        };
+                                        break;
+                                    default:
+                                        continue;
+                                }
+                                test.Questions.Add(question);
+                            }
+                        }
+                    }
+                    Console.WriteLine($"Test {test.TestName} (Id: {test.Id}) loaded with {test.Questions.Count} questions");
+                }
+            }
+            return tests;
+        }
+
+        public void SaveTests(List<Test> tests)
+        {
+            using (var connection = new MySqlConnection(ConnectionString))
+            {
+                connection.Open();
+                foreach (var test in tests)
+                {
+                    const string testQuery = @"
+                        INSERT INTO Tests (Id, TestName, TimeLimit) VALUES (@id, @testName, @timeLimit)
+                        ON DUPLICATE KEY UPDATE TestName = @testName, TimeLimit = @timeLimit";
+                    using (var command = new MySqlCommand(testQuery, connection))
+                    {
+                        command.Parameters.AddWithValue("@id", test.Id == 0 ? null : test.Id);
+                        command.Parameters.AddWithValue("@testName", test.TestName);
+                        command.Parameters.AddWithValue("@timeLimit", test.TimeLimit);
+                        command.ExecuteNonQuery();
+                        Console.WriteLine($"Test {test.TestName} saved with Id {test.Id}");
+
+                        if (test.Id == 0)
+                        {
+                            command.CommandText = "SELECT LAST_INSERT_ID()";
+                            test.Id = Convert.ToInt32(command.ExecuteScalar());
+                        }
+                    }
+
+                    Console.WriteLine($"Saving {test.Questions.Count} questions for Test {test.TestName} (Id: {test.Id})");
+                    foreach (var question in test.Questions)
+                    {
+                        string type;
+                        string correctAnswer = null;
+                        string correctAnswers = null;
+                        var options = JsonSerializer.Serialize(question.Options);
+
+                        switch (question)
+                        {
+                            case MultipleChoiceQuestion mcq:
+                                type = "MultipleChoice";
+                                correctAnswers = JsonSerializer.Serialize(mcq.CorrectAnswers);
+                                break;
+                            case FillInBlankQuestion fibq:
+                                type = "FillInBlank";
+                                correctAnswers = JsonSerializer.Serialize(fibq.CorrectAnswers);
+                                break;
+                            case TrueFalseQuestion tfq:
+                                type = "TrueFalse";
+                                correctAnswer = tfq.Answer.ToString();
+                                break;
+                            default:
+                                type = "SingleChoice";
+                                correctAnswer = question.CorrectAnswer;
+                                break;
+                        }
+
+                        const string questionQuery = @"
+                            INSERT INTO Questions (Id, TestId, Type, Description, CorrectAnswer, CorrectAnswers, Points, Options)
+                            VALUES (@id, @testId, @type, @description, @correctAnswer, @correctAnswers, @points, @options)
+                            ON DUPLICATE KEY UPDATE
+                                TestId = @testId,
+                                Type = @type,
+                                Description = @description,
+                                CorrectAnswer = @correctAnswer,
+                                CorrectAnswers = @correctAnswers,
+                                Points = @points,
+                                Options = @options";
+                        using (var command = new MySqlCommand(questionQuery, connection))
+                        {
+                            command.Parameters.AddWithValue("@id", question.Id == 0 ? null : question.Id);
+                            command.Parameters.AddWithValue("@testId", test.Id);
+                            command.Parameters.AddWithValue("@type", type);
+                            command.Parameters.AddWithValue("@description", question.question);
+                            command.Parameters.AddWithValue("@correctAnswer", (object)correctAnswer ?? DBNull.Value);
+                            command.Parameters.AddWithValue("@correctAnswers", (object)correctAnswers ?? DBNull.Value);
+                            command.Parameters.AddWithValue("@points", question.Points);
+                            command.Parameters.AddWithValue("@options", options);
+                            try
+                            {
+                                command.ExecuteNonQuery();
+                                if (question.Id == 0)
+                                {
+                                    command.CommandText = "SELECT LAST_INSERT_ID()";
+                                    question.Id = Convert.ToInt32(command.ExecuteScalar());
+                                }
+                                Console.WriteLine($"Question '{question.question}' saved with Id {question.Id} for TestId {test.Id}");
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"Error saving question '{question.question}': {ex.Message}");
+                                throw;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        public void SaveTestResult(int userId, int testId, int score)
+        {
+            using (var connection = new MySqlConnection(ConnectionString))
+            {
+                connection.Open();
+                const string query = "INSERT INTO Results (UserId, TestId, Score) VALUES (@userId, @testId, @score)";
+                using (var command = new MySqlCommand(query, connection))
+                {
+                    command.Parameters.AddWithValue("@userId", userId);
+                    command.Parameters.AddWithValue("@testId", testId);
+                    command.Parameters.AddWithValue("@score", score);
+                    command.ExecuteNonQuery();
+                }
+            }
+        }
+        
+        public Dictionary<int, Dictionary<int, int>> GetUserTestResults(int userId)
+        {
+            var results = new Dictionary<int, Dictionary<int, int>>();
+            using (var connection = new MySqlConnection(ConnectionString))
+            {
+                connection.Open();
+                const string query = "SELECT TestId, Id, Score FROM Results WHERE UserId = @userId";
+                using (var command = new MySqlCommand(query, connection))
+                {
+                    command.Parameters.AddWithValue("@userId", userId);
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            int testId = Convert.ToInt32(reader["testId"]);
+                            int resultId = Convert.ToInt32(reader["Id"]);
+                            int score = Convert.ToInt32(reader["score"]);
+
+                            if (!results.ContainsKey(testId))
+                            {
+                                results[testId] = new Dictionary<int, int>();
+                            }
+                            results[testId][resultId] = score;
+                        }
+                    }
+                }
+            }
+            return results;
+        }
+
+        private string HashPassword(string password)
+        {
+            using (SHA256 sha256 = SHA256.Create())
+            {
+                var hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password));
+                var builder = new StringBuilder();
+                foreach (var b in hashBytes)
+                {
+                    builder.Append(b.ToString("x2"));
+                }
+                return builder.ToString();
+            }
+        }
+    }
+}
