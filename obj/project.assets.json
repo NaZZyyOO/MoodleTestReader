@@ -381,6 +381,28 @@
           "buildTransitive/net6.0/_._": {}
         }
       },
+      "System.Speech/10.0.0-rc.2.25502.107": {
+        "type": "package",
+        "compile": {
+          "lib/net9.0/System.Speech.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net9.0/System.Speech.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "buildTransitive/net8.0/_._": {}
+        },
+        "runtimeTargets": {
+          "runtimes/win/lib/net9.0/System.Speech.dll": {
+            "assetType": "runtime",
+            "rid": "win"
+          }
+        }
+      },
       "System.Text.Encoding/4.3.0": {
         "type": "package",
         "dependencies": {
@@ -1339,6 +1361,38 @@
         "useSharedDesignerContext.txt"
       ]
     },
+    "System.Speech/10.0.0-rc.2.25502.107": {
+      "sha512": "WjWraDH3GC57bFUhE5pPOinxrXXvVRnl1Z9v+PFrjvhYioAZSCQpurg6bJaqNQKaKTqhYa4vSL2kK6SxmjX6og==",
+      "type": "package",
+      "path": "system.speech/10.0.0-rc.2.25502.107",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "Icon.png",
+        "PACKAGE.md",
+        "THIRD-PARTY-NOTICES.TXT",
+        "buildTransitive/net8.0/_._",
+        "buildTransitive/netcoreapp2.0/System.Speech.targets",
+        "lib/net10.0/System.Speech.dll",
+        "lib/net10.0/System.Speech.xml",
+        "lib/net462/_._",
+        "lib/net8.0/System.Speech.dll",
+        "lib/net8.0/System.Speech.xml",
+        "lib/net9.0/System.Speech.dll",
+        "lib/net9.0/System.Speech.xml",
+        "lib/netstandard2.0/System.Speech.dll",
+        "lib/netstandard2.0/System.Speech.xml",
+        "runtimes/win/lib/net10.0/System.Speech.dll",
+        "runtimes/win/lib/net10.0/System.Speech.xml",
+        "runtimes/win/lib/net8.0/System.Speech.dll",
+        "runtimes/win/lib/net8.0/System.Speech.xml",
+        "runtimes/win/lib/net9.0/System.Speech.dll",
+        "runtimes/win/lib/net9.0/System.Speech.xml",
+        "system.speech.10.0.0-rc.2.25502.107.nupkg.sha512",
+        "system.speech.nuspec",
+        "useSharedDesignerContext.txt"
+      ]
+    },
     "System.Text.Encoding/4.3.0": {
       "sha512": "BiIg+KWaSDOITze6jGQynxg64naAPtqGHBwDrLaCtixsa5bKiR8dpPOHA7ge3C0JJQizJE+sfkz1wV+BAKAYZw==",
       "type": "package",
@@ -1676,7 +1730,8 @@
   "projectFileDependencyGroups": {
     "net9.0-windows7.0": [
       "MySql.Data >= 9.4.0",
-      "MySqlConnector >= 2.3.7"
+      "MySqlConnector >= 2.3.7",
+      "System.Speech >= 10.0.0-rc.2.25502.107"
     ]
   },
   "packageFolders": {
@@ -1729,6 +1784,10 @@
           "MySqlConnector": {
             "target": "Package",
             "version": "[2.3.7, )"
+          },
+          "System.Speech": {
+            "target": "Package",
+            "version": "[10.0.0-rc.2.25502.107, )"
           }
         },
         "imports": [
