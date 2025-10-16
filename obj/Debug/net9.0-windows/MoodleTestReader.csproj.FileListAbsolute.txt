@@ -29,3 +29,6 @@ C:\Users\Vlad\RiderProjects\CourseworkProgramming\MoodleTestReader\bin\Debug\net
 C:\Users\Vlad\RiderProjects\CourseworkProgramming\MoodleTestReader\bin\Debug\net9.0-windows\runtimes\win-x64\native\krb5_64.dll
 C:\Users\Vlad\RiderProjects\CourseworkProgramming\MoodleTestReader\bin\Debug\net9.0-windows\runtimes\win-x64\native\krbcc64.dll
 C:\Users\Vlad\RiderProjects\CourseworkProgramming\MoodleTestReader\obj\Debug\net9.0-windows\MoodleTestReader.sourcelink.json
+C:\Users\Vlad\RiderProjects\CourseworkProgramming\MoodleTestReader\bin\Debug\net9.0-windows\Newtonsoft.Json.dll
+C:\Users\Vlad\RiderProjects\CourseworkProgramming\MoodleTestReader\bin\Debug\net9.0-windows\System.Speech.dll
+C:\Users\Vlad\RiderProjects\CourseworkProgramming\MoodleTestReader\bin\Debug\net9.0-windows\runtimes\win\lib\net9.0\System.Speech.dll

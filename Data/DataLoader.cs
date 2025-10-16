@@ -2,8 +2,9 @@ using System.Security.Cryptography;
 using System.Text;
 using MySql.Data.MySqlClient;
 using MoodleTestReader.Models;
-using System.Text.Json;
 using MoodleTestReader.Logic;
+using Newtonsoft.Json;
+using JsonSerializer = System.Text.Json.JsonSerializer;
 
 namespace MoodleTestReader.Data
 {
@@ -47,12 +48,13 @@ namespace MoodleTestReader.Data
                     )";
                 const string createResultsTable = @"
                     CREATE TABLE IF NOT EXISTS Results (
-                        Id INT AUTO_INCREMENT PRIMARY KEY,
-                        UserId INT,
-                        TestId INT,
-                        Score INT,
-                        FOREIGN KEY (UserId) REFERENCES Users(Id),
-                        FOREIGN KEY (TestId) REFERENCES Tests(Id)
+                        Id INT PRIMARY KEY AUTO_INCREMENT,
+                        UserId INT NOT NULL,
+                        TestId INT NOT NULL,
+                        StartTime DATETIME NOT NULL,
+                        EndTime DATETIME NOT NULL,
+                        DetailedResults TEXT,
+                        FOREIGN KEY (UserId) REFERENCES Users(Id)
                     )";
 
                 using (var command = new MySqlConnection(ConnectionString))
@@ -331,50 +333,68 @@ namespace MoodleTestReader.Data
             }
         }
 
-        public void SaveTestResult(int userId, int testId, int score)
+        public void SaveTestResult(TestResult result)
         {
+            // Серіалізуємо словник з детальними результатами у JSON-рядок
+            string detailedResultsJson = JsonConvert.SerializeObject(result.Results);
+
             using (var connection = new MySqlConnection(ConnectionString))
             {
                 connection.Open();
-                const string query = "INSERT INTO Results (UserId, TestId, Score) VALUES (@userId, @testId, @score)";
+                const string query = @"
+                    INSERT INTO Results (UserId, TestId, StartTime, EndTime, DetailedResults) 
+                        VALUES (@userId, @testId, @startTime, @endTime, @detailedResults)";
+
                 using (var command = new MySqlCommand(query, connection))
                 {
-                    command.Parameters.AddWithValue("@userId", userId);
-                    command.Parameters.AddWithValue("@testId", testId);
-                    command.Parameters.AddWithValue("@score", score);
+                    command.Parameters.AddWithValue("@userId", result.UserId);
+                    command.Parameters.AddWithValue("@testId", result.TestId);
+                    command.Parameters.AddWithValue("@startTime", result.StartTime);
+                    command.Parameters.AddWithValue("@endTime", result.EndTime);
+                    command.Parameters.AddWithValue("@detailedResults", detailedResultsJson);
                     command.ExecuteNonQuery();
                 }
             }
         }
-        
-        public Dictionary<int, Dictionary<int, int>> GetUserTestResults(int userId)
+
+        public List<TestResult> GetUserTestResults(int userId)
         {
-            var results = new Dictionary<int, Dictionary<int, int>>();
+            var testResults = new List<TestResult>();
+
             using (var connection = new MySqlConnection(ConnectionString))
             {
                 connection.Open();
-                const string query = "SELECT TestId, Id, Score FROM Results WHERE UserId = @userId";
+                const string query =
+                    "SELECT Id, TestId, StartTime, EndTime, DetailedResults FROM Results WHERE UserId = @userId";
                 using (var command = new MySqlCommand(query, connection))
                 {
                     command.Parameters.AddWithValue("@userId", userId);
+
                     using (var reader = command.ExecuteReader())
                     {
                         while (reader.Read())
                         {
-                            int testId = Convert.ToInt32(reader["testId"]);
-                            int resultId = Convert.ToInt32(reader["Id"]);
-                            int score = Convert.ToInt32(reader["score"]);
-
-                            if (!results.ContainsKey(testId))
+                            var result = new TestResult
                             {
-                                results[testId] = new Dictionary<int, int>();
-                            }
-                            results[testId][resultId] = score;
+                                Id = reader.GetInt32("Id"),
+                                UserId = userId, // Ми вже знаємо UserId
+                                TestId = reader.GetInt32("TestId"),
+                                StartTime = reader.GetDateTime("StartTime"),
+                                EndTime = reader.GetDateTime("EndTime"),
+                            };
+
+                            var detailedResultsJson = reader.GetString("DetailedResults");
+
+                            // Десеріалізуємо JSON назад у словник
+                            result.Results = JsonConvert.DeserializeObject<Dictionary<int, int>>(detailedResultsJson);
+
+                            testResults.Add(result);
                         }
                     }
                 }
             }
-            return results;
+
+            return testResults;
         }
 
         private string HashPassword(string password)

@@ -7,13 +7,13 @@ namespace MoodleTestReader.Logic
     {
         private readonly DataLoader _dataLoader;
         private readonly Dictionary<int, Test> _testTemplates; // Шаблони тестів: Id -> Test з усіма запитаннями
-        private readonly Dictionary<User, TestSession> _userSessions; // Сеанси користувачів: User -> TestSession
+        private readonly Dictionary<int, TestSession> _userSessions; // Сеанси користувачів: User -> TestSession
 
         public TestManager()
         {
             _dataLoader = new DataLoader();
             _testTemplates = new Dictionary<int, Test>();
-            _userSessions = new Dictionary<User, TestSession>();
+            _userSessions = new Dictionary<int, TestSession>();
             LoadTestTemplates();
         }
 
@@ -47,12 +47,12 @@ namespace MoodleTestReader.Logic
             var selectedQuestions = testTemplate.Questions;
 
             var session = new TestSession(testTemplate, selectedQuestions);
-            _userSessions[user] = session;
+            _userSessions[user.Id] = session;
         }
 
         public Question GetCurrentQuestionForUser(User user)
         {
-            if (!_userSessions.TryGetValue(user, out var session))
+            if (!_userSessions.TryGetValue(user.Id, out var session))
             {
                 return null;
             }
@@ -62,7 +62,7 @@ namespace MoodleTestReader.Logic
 
         public void SubmitAnswerForUser(User user, object answer)
         {
-            if (!_userSessions.TryGetValue(user, out var session))
+            if (!_userSessions.TryGetValue(user.Id, out var session))
             {
                 return;
             }
@@ -70,28 +70,29 @@ namespace MoodleTestReader.Logic
             session.SubmitAnswer(answer);
         }
 
-        public void SaveResultsForUser(User user, out int score)
+        public void SaveResultsForUser(User user, out int score, DateTime startTime)
         {
-            if (!_userSessions.TryGetValue(user, out var session))
+            if (!_userSessions.TryGetValue(user.Id, out var session))
             {   
                 score = 0;
                 return;
             }
 
             score = session.GetScore();
-            _dataLoader.SaveTestResult(user.Id, session.TestTemplate.Id, score);
-
-            if (!user.TestResults.TryGetValue(session.TestTemplate.Id, out var value))
+            
+            var testResult = new TestResult
             {
-                value = new Dictionary<int, int>();
-                user.TestResults[session.TestTemplate.Id] = value;
-            }
-            foreach (var result in session.Results)
-            {
-                value[result.Key] = result.Value;
-            }
+                UserId = user.Id,
+                TestId = session.TestTemplate.Id,
+                StartTime = startTime,
+                EndTime = DateTime.Now, // Фіксуємо час завершення
+                Results = session.Results // Беремо детальні результати з сесії
+            };
+            
+            _dataLoader.SaveTestResult(testResult);
+            
 
-            _userSessions.Remove(user); // Очищаємо сеанс після збереження
+            _userSessions.Remove(user.Id); // Очищаємо сеанс після збереження
         }
     }
     

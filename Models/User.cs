@@ -9,8 +9,7 @@ namespace MoodleTestReader.Models
         public List<int> ProfessorsTests { get; set; }
         
         // Словник: айді теста = Словник(айді запитання, на яке дається відповідь = кількість набраних балів)
-        public Dictionary<int, Dictionary<int, int>> TestResults { get; set; } =
-            new Dictionary<int, Dictionary<int, int>>();
+        public List<TestResult> TestResults { get; set; } = new List<TestResult>();
 
         public User(int id, string username, string password)
         {

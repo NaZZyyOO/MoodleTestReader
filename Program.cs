@@ -46,7 +46,6 @@ static class Program
         dataLoader.SaveTests(tests);
         Console.WriteLine("Тести збережено в БД.");
         dataLoader.InitializeDatabase();
-        var testManager = new TestManager();
         ApplicationConfiguration.Initialize();
         Application.Run(new Test());
     }

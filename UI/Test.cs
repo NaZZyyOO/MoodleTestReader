@@ -10,6 +10,7 @@ namespace MoodleTestReader.UI
         private TestManager _testManager;
         private readonly Timer _testTimer;
         private int _remainingTime; // в секундах
+        private DateTime _startTime;
         private Panel _questionPanel;
 
         public Test()
@@ -20,6 +21,8 @@ namespace MoodleTestReader.UI
             _testTimer = new Timer { Interval = 1000 };
             _testTimer.Tick += TestTimer_Tick;
             comboBoxTests.Click += TestReview;
+            comboBoxTests.SelectedIndexChanged += TestReview;
+            comboBoxTests.SelectedValueChanged += TestReview;
         }
 
         private void InitializeComponents()
@@ -77,6 +80,7 @@ namespace MoodleTestReader.UI
             buttonStartTest.Visible = false;
             buttonReviewTest.Visible = false;
             labelTime.Visible = true;
+            _startTime = DateTime.Now;
             _testTimer.Start();
             ShowCurrentQuestion();
         }
@@ -88,7 +92,7 @@ namespace MoodleTestReader.UI
             if (question == null)
             {
                 _testTimer.Stop();
-                _testManager.SaveResultsForUser(_currentUser, out int score);
+                _testManager.SaveResultsForUser(_currentUser, out int score, _startTime);
                 comboBoxTests.Visible = true;
                 buttonStartTest.Visible = true;
                 labelTime.Visible = false;
@@ -225,11 +229,15 @@ namespace MoodleTestReader.UI
             var selectedTestName = comboBoxTests.SelectedItem.ToString();
             var currentTest = _testManager.GetAvailableTests().FirstOrDefault(t => t.TestName == selectedTestName);
 
-            if (currentTest != null && _currentUser.TestResults.ContainsKey(currentTest.Id))
+            if (currentTest != null)
             {
-                buttonStartTest.Visible = false;
-                buttonReviewTest.Visible = true;
+                Console.WriteLine("Поточне айді тесту для перевірки: " + currentTest.Id);
 
+                if (_currentUser.TestResults.Any(result => result.TestId == currentTest.Id))
+                {
+                    buttonStartTest.Visible = false;
+                    buttonReviewTest.Visible = true;
+                }
             }
         }
 
@@ -253,7 +261,7 @@ namespace MoodleTestReader.UI
             else
             {
                 _testTimer.Stop();
-                _testManager.SaveResultsForUser(_currentUser, out int score);
+                _testManager.SaveResultsForUser(_currentUser, out int score, _startTime);
                 MessageBox.Show($"Час вичерпано. Тест завершено. Ваш результат: {score} балів.");
                 _questionPanel.Controls.Clear();
 
