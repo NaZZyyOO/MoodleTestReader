@@ -1,5 +1,7 @@
+using System.Threading.Tasks;
 using MoodleTestReader.Logic;
 using MoodleTestReader.Models;
+using MoodleTestReader.Services;
 using Timer = System.Windows.Forms.Timer;
 
 namespace MoodleTestReader.UI
@@ -13,22 +15,32 @@ namespace MoodleTestReader.UI
         private DateTime _startTime;
         private Panel _questionPanel;
 
+        // Диктування винесене у сервіс
+        private TestDictationService _dictation;
+
+        // Лічильники питань
+        private int _questionNumber;
+        private int _totalQuestions;
+
         public Test()
         {
             InitializeComponent();
             InitializeComponents();
             ShowLoginScreen();
+
             _testTimer = new Timer { Interval = 1000 };
             _testTimer.Tick += TestTimer_Tick;
+
             comboBoxTests.Click += TestReview;
             comboBoxTests.SelectedIndexChanged += TestReview;
             comboBoxTests.SelectedValueChanged += TestReview;
+
+            _dictation = new TestDictationService(this);
         }
 
         private void InitializeComponents()
         {
             _questionPanel = new Panel { Dock = DockStyle.Fill, Location = new Point(0, 0) };
-            
             Controls.Add(_questionPanel);
         }
 
@@ -57,7 +69,7 @@ namespace MoodleTestReader.UI
             }
         }
 
-        private void StartTestButton_Click(object? sender, EventArgs e)
+        private async void StartTestButton_Click(object? sender, EventArgs e)
         {
             if (comboBoxTests.SelectedIndex == -1)
             {
@@ -82,10 +94,17 @@ namespace MoodleTestReader.UI
             labelTime.Visible = true;
             _startTime = DateTime.Now;
             _testTimer.Start();
-            ShowCurrentQuestion();
+
+            _questionNumber = 1;
+            _totalQuestions = currentTest.Questions.Count;
+
+            // Сховати прапорець і підготувати сервіс
+            _dictation.OnTestStarted(_totalQuestions);
+
+            await ShowCurrentQuestionAsync();
         }
 
-        private void ShowCurrentQuestion()
+        private async Task ShowCurrentQuestionAsync()
         {
             _questionPanel.Controls.Clear();
             var question = _testManager.GetCurrentQuestionForUser(_currentUser);
@@ -93,9 +112,15 @@ namespace MoodleTestReader.UI
             {
                 _testTimer.Stop();
                 _testManager.SaveResultsForUser(_currentUser, out int score, _startTime);
+
+                // Повернути UI вибору тесту
                 comboBoxTests.Visible = true;
                 buttonStartTest.Visible = true;
                 labelTime.Visible = false;
+
+                // Озвучити результат і повернути перемикач
+                await _dictation.OnTestFinishedAsync(score);
+
                 MessageBox.Show($"Тест завершено. Ваш результат: {score} балів. Залишковий час: {TimeSpan.FromSeconds(_remainingTime):mm\\:ss}");
                 return;
             }
@@ -114,7 +139,6 @@ namespace MoodleTestReader.UI
                         _questionPanel.Controls.Add(checkBox);
                         y += 30;
                     }
-
                     break;
                 }
                 case FillInBlankQuestion:
@@ -131,7 +155,6 @@ namespace MoodleTestReader.UI
                     _questionPanel.Controls.Add(radioFalse);
                     break;
                 }
-                // SingleChoice
                 default:
                 {
                     int y = 50;
@@ -141,7 +164,6 @@ namespace MoodleTestReader.UI
                         _questionPanel.Controls.Add(radio);
                         y += 30;
                     }
-
                     break;
                 }
             }
@@ -149,9 +171,12 @@ namespace MoodleTestReader.UI
             var buttonNext = new Button { Text = "Наступне", Location = new Point(10, 200), Width = 150, Height = 30 };
             buttonNext.Click += NextButton_Click;
             _questionPanel.Controls.Add(buttonNext);
+
+            // Запустити озвучення для поточного питання (якщо увімкнено у сервісі)
+            await _dictation.OnQuestionShownAsync(question);
         }
 
-        private void NextButton_Click(object sender, EventArgs e)
+        private async void NextButton_Click(object sender, EventArgs e)
         {
             var question = _testManager.GetCurrentQuestionForUser(_currentUser);
             object answer = null;
@@ -168,7 +193,6 @@ namespace MoodleTestReader.UI
                             ((List<string>)answer).Add(checkBox.Text);
                         }
                     }
-
                     break;
                 }
                 case FillInBlankQuestion:
@@ -181,7 +205,6 @@ namespace MoodleTestReader.UI
                             break;
                         }
                     }
-
                     break;
                 }
                 case TrueFalseQuestion:
@@ -194,10 +217,8 @@ namespace MoodleTestReader.UI
                             break;
                         }
                     }
-
                     break;
                 }
-                // SingleChoice
                 default:
                 {
                     foreach (Control control in _questionPanel.Controls)
@@ -208,7 +229,6 @@ namespace MoodleTestReader.UI
                             break;
                         }
                     }
-
                     break;
                 }
             }
@@ -219,8 +239,12 @@ namespace MoodleTestReader.UI
                 return;
             }
 
+            // Повідомляємо сервіс про перехід (він скасовує поточне читання і збільшує номер)
+            _dictation.OnNextQuestion();
             _testManager.SubmitAnswerForUser(_currentUser, answer);
-            ShowCurrentQuestion();
+
+            _questionNumber++;
+            await ShowCurrentQuestionAsync();
         }
 
         private void TestReview(object? sender, EventArgs e)
@@ -238,12 +262,15 @@ namespace MoodleTestReader.UI
                     buttonStartTest.Visible = false;
                     buttonReviewTest.Visible = true;
                 }
+
+                // Показуємо перемикач диктування на екрані вибору
+                _dictation.OnTestSelected();
             }
         }
 
         private void TestReview_Click(object? sender, EventArgs e)
         {
-            
+
         }
 
         private void TestTimer_Tick(object? sender, EventArgs e)
@@ -262,6 +289,10 @@ namespace MoodleTestReader.UI
             {
                 _testTimer.Stop();
                 _testManager.SaveResultsForUser(_currentUser, out int score, _startTime);
+
+                // Озвучення результату і повернення перемикача
+                _ = _dictation.OnTestFinishedAsync(score);
+
                 MessageBox.Show($"Час вичерпано. Тест завершено. Ваш результат: {score} балів.");
                 _questionPanel.Controls.Clear();
 
@@ -269,6 +300,12 @@ namespace MoodleTestReader.UI
                 comboBoxTests.Visible = true;
                 labelTime.Visible = false;
             }
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            try { _dictation?.Dispose(); } catch { }
+            base.OnFormClosing(e);
         }
     }
 }
