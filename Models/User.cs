@@ -1,3 +1,5 @@
+using MoodleTestReader.Models.Results;
+
 namespace MoodleTestReader.Models
 {
     public class User

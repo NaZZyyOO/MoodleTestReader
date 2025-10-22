@@ -3,6 +3,7 @@ using System.Text;
 using MySql.Data.MySqlClient;
 using MoodleTestReader.Models;
 using MoodleTestReader.Logic;
+using MoodleTestReader.Models.Results;
 using Newtonsoft.Json;
 using JsonSerializer = System.Text.Json.JsonSerializer;
 
@@ -56,24 +57,26 @@ namespace MoodleTestReader.Data
                         DetailedResults TEXT,
                         FOREIGN KEY (UserId) REFERENCES Users(Id)
                     )";
+                // НОВА нормалізована таблиця з деталями по кожному питанню
+                const string createResultDetailsTable = @"
+                    CREATE TABLE IF NOT EXISTS ResultDetails (
+                        Id INT PRIMARY KEY AUTO_INCREMENT,
+                        ResultId INT NOT NULL,
+                        QuestionId INT NOT NULL,
+                        AnswerType VARCHAR(16) NOT NULL,
+                        AnswerText TEXT NULL,
+                        AnswerBool TINYINT(1) NULL,
+                        AnswerList TEXT NULL, -- JSON масив
+                        Points INT NOT NULL,
+                        FOREIGN KEY (ResultId) REFERENCES Results(Id)
+                    )";
 
                 using (var command = new MySqlConnection(ConnectionString))
                 {
                     command.Open();
-                    using (var cmd = new MySqlCommand(createUsersTable, command))
+                    foreach (var sql in new[] { createUsersTable, createTestsTable, createQuestionsTable, createResultsTable, createResultDetailsTable })
                     {
-                        cmd.ExecuteNonQuery();
-                    }
-                    using (var cmd = new MySqlCommand(createTestsTable, command))
-                    {
-                        cmd.ExecuteNonQuery();
-                    }
-                    using (var cmd = new MySqlCommand(createQuestionsTable, command))
-                    {
-                        cmd.ExecuteNonQuery();
-                    }
-                    using (var cmd = new MySqlCommand(createResultsTable, command))
-                    {
+                        using var cmd = new MySqlCommand(sql, command);
                         cmd.ExecuteNonQuery();
                     }
                 }
@@ -335,24 +338,50 @@ namespace MoodleTestReader.Data
 
         public void SaveTestResult(TestResult result)
         {
-            // Серіалізуємо словник з детальними результатами у JSON-рядок
-            string detailedResultsJson = JsonConvert.SerializeObject(result.Results);
-
             using (var connection = new MySqlConnection(ConnectionString))
             {
                 connection.Open();
-                const string query = @"
-                    INSERT INTO Results (UserId, TestId, StartTime, EndTime, DetailedResults) 
-                        VALUES (@userId, @testId, @startTime, @endTime, @detailedResults)";
 
-                using (var command = new MySqlCommand(query, connection))
+                // 1) Вставляємо заголовок Results
+                const string insertResult = @"
+                    INSERT INTO Results (UserId, TestId, StartTime, EndTime, DetailedResults)
+                    VALUES (@userId, @testId, @startTime, @endTime, @detailedResults)";
+                using (var cmd = new MySqlCommand(insertResult, connection))
                 {
-                    command.Parameters.AddWithValue("@userId", result.UserId);
-                    command.Parameters.AddWithValue("@testId", result.TestId);
-                    command.Parameters.AddWithValue("@startTime", result.StartTime);
-                    command.Parameters.AddWithValue("@endTime", result.EndTime);
-                    command.Parameters.AddWithValue("@detailedResults", detailedResultsJson);
-                    command.ExecuteNonQuery();
+                    // детальний JSON залишимо для резерву (можна ставити NULL)
+                    var payload = new { Scores = result.Results, Details = result.Details };
+                    var json = JsonConvert.SerializeObject(payload);
+
+                    cmd.Parameters.AddWithValue("@userId", result.UserId);
+                    cmd.Parameters.AddWithValue("@testId", result.TestId);
+                    cmd.Parameters.AddWithValue("@startTime", result.StartTime);
+                    cmd.Parameters.AddWithValue("@endTime", result.EndTime);
+                    cmd.Parameters.AddWithValue("@detailedResults", json);
+                    cmd.ExecuteNonQuery();
+
+                    cmd.CommandText = "SELECT LAST_INSERT_ID()";
+                    result.Id = Convert.ToInt32(cmd.ExecuteScalar());
+                }
+
+                // 2) Вставляємо деталізацію по кожному питанню
+                const string insertDetail = @"
+                    INSERT INTO ResultDetails (ResultId, QuestionId, AnswerType, AnswerText, AnswerBool, AnswerList, Points)
+                    VALUES (@resultId, @questionId, @type, @text, @bool, @list, @points)";
+                foreach (var kv in result.Details)
+                {
+                    var questionId = kv.Key;
+                    var aws = kv.Value;
+                    var ua = aws.Answer ?? new UserAnswer();
+
+                    using var dcmd = new MySqlCommand(insertDetail, connection);
+                    dcmd.Parameters.AddWithValue("@resultId", result.Id);
+                    dcmd.Parameters.AddWithValue("@questionId", questionId);
+                    dcmd.Parameters.AddWithValue("@type", ua.Type ?? "single");
+                    dcmd.Parameters.AddWithValue("@text", (object?)ua.Text ?? DBNull.Value);
+                    dcmd.Parameters.AddWithValue("@bool", ua.Bool.HasValue ? (ua.Bool.Value ? 1 : 0) : (object)DBNull.Value);
+                    dcmd.Parameters.AddWithValue("@list", ua.List != null ? JsonConvert.SerializeObject(ua.List) : (object)DBNull.Value);
+                    dcmd.Parameters.AddWithValue("@points", aws.Points);
+                    dcmd.ExecuteNonQuery();
                 }
             }
         }
@@ -364,38 +393,69 @@ namespace MoodleTestReader.Data
             using (var connection = new MySqlConnection(ConnectionString))
             {
                 connection.Open();
-                const string query =
+                const string selectResults =
                     "SELECT Id, TestId, StartTime, EndTime, DetailedResults FROM Results WHERE UserId = @userId";
-                using (var command = new MySqlCommand(query, connection))
+                using (var command = new MySqlCommand(selectResults, connection))
                 {
                     command.Parameters.AddWithValue("@userId", userId);
-
-                    using (var reader = command.ExecuteReader())
+                    using var reader = command.ExecuteReader();
+                    while (reader.Read())
                     {
-                        while (reader.Read())
+                        var result = new TestResult
                         {
-                            var result = new TestResult
-                            {
-                                Id = reader.GetInt32("Id"),
-                                UserId = userId, // Ми вже знаємо UserId
-                                TestId = reader.GetInt32("TestId"),
-                                StartTime = reader.GetDateTime("StartTime"),
-                                EndTime = reader.GetDateTime("EndTime"),
-                            };
+                            Id = reader.GetInt32("Id"),
+                            UserId = userId,
+                            TestId = reader.GetInt32("TestId"),
+                            StartTime = reader.GetDateTime("StartTime"),
+                            EndTime = reader.GetDateTime("EndTime")
+                        };
 
-                            var detailedResultsJson = reader.GetString("DetailedResults");
+                        // Опційно: з DetailedResults можна зробити fallback, але основне — тягнемо з ResultDetails
+                        testResults.Add(result);
+                    }
+                }
 
-                            // Десеріалізуємо JSON назад у словник
-                            result.Results = JsonConvert.DeserializeObject<Dictionary<int, int>>(detailedResultsJson);
+                if (testResults.Count == 0) return testResults;
 
-                            testResults.Add(result);
-                        }
+                // Підтягнути деталі для всіх знайдених ResultId одним запитом
+                var ids = string.Join(",", testResults.Select(r => r.Id));
+                var detailsSql = $@"
+                    SELECT ResultId, QuestionId, AnswerType, AnswerText, AnswerBool, AnswerList, Points
+                    FROM ResultDetails
+                    WHERE ResultId IN ({ids})";
+
+                using (var dcmd = new MySqlCommand(detailsSql, connection))
+                using (var dreader = dcmd.ExecuteReader())
+                {
+                    var map = testResults.ToDictionary(r => r.Id, r => r);
+                    while (dreader.Read())
+                    {
+                        var resId = dreader.GetInt32("ResultId");
+                        if (!map.TryGetValue(resId, out var res)) continue;
+
+                        var qId = dreader.GetInt32("QuestionId");
+                        var type = dreader.GetString("AnswerType");
+                        string? text = dreader["AnswerText"] == DBNull.Value ? null : dreader.GetString("AnswerText");
+                        int? b = dreader["AnswerBool"] == DBNull.Value ? null : dreader.GetInt32("AnswerBool");
+                        string? listJson = dreader["AnswerList"] == DBNull.Value ? null : dreader.GetString("AnswerList");
+                        var points = dreader.GetInt32("Points");
+
+                        var ua = new UserAnswer { Type = type };
+                        if (type == "bool") ua.Bool = b.HasValue ? b.Value != 0 : null;
+                        if (type == "text" || type == "single") ua.Text = text;
+                        if (type == "multi") ua.List = !string.IsNullOrEmpty(listJson)
+                            ? JsonConvert.DeserializeObject<List<string>>(listJson) ?? new List<string>()
+                            : new List<string>();
+
+                        res.Details[qId] = new AnswerWithScore { Answer = ua, Points = points };
+                        res.Results[qId] = points; // для сумісності
                     }
                 }
             }
 
             return testResults;
         }
+
 
         private string HashPassword(string password)
         {

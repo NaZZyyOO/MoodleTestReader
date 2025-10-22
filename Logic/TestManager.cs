@@ -1,5 +1,6 @@
 using MoodleTestReader.Data;
 using MoodleTestReader.Models;
+using MoodleTestReader.Models.Results;
 
 namespace MoodleTestReader.Logic
 {
@@ -42,8 +43,6 @@ namespace MoodleTestReader.Logic
                 throw new Exception("Тест не знайдено.");
             }
 
-            // Вибираємо випадково певну кількість запитань (наприклад, 5)
-            var random = new Random();
             var selectedQuestions = testTemplate.Questions;
 
             var session = new TestSession(testTemplate, selectedQuestions);
@@ -79,21 +78,53 @@ namespace MoodleTestReader.Logic
             }
 
             score = session.GetScore();
+
+            // Заповнюємо деталі з сесії
+            var details = new Dictionary<int, AnswerWithScore>();
+            foreach (var kv in session.Results) // questionId -> points
+            {
+                var qId = kv.Key;
+                var pts = kv.Value;
+                session.UserAnswers.TryGetValue(qId, out var ua);
+                details[qId] = new AnswerWithScore
+                {
+                    Answer = ua ?? new UserAnswer(),
+                    Points = pts
+                };
+            }
             
             var testResult = new TestResult
             {
                 UserId = user.Id,
                 TestId = session.TestTemplate.Id,
                 StartTime = startTime,
-                EndTime = DateTime.Now, // Фіксуємо час завершення
-                Results = session.Results // Беремо детальні результати з сесії
+                EndTime = DateTime.Now,
+                Results = session.Results,
+                Details = details
             };
             
             _dataLoader.SaveTestResult(testResult);
-            
 
-            _userSessions.Remove(user.Id); // Очищаємо сеанс після збереження
+            // Оновлюємо кеш користувача в пам’яті
+            if (user.TestResults == null)
+            {
+                user.TestResults = new List<TestResult>();
+            }
+
+            var existing = user.TestResults.FirstOrDefault(r => r.TestId == testResult.TestId);
+            if (existing != null)
+            {
+                existing.StartTime = testResult.StartTime;
+                existing.EndTime = testResult.EndTime;
+                existing.Results = testResult.Results;
+                existing.Details = testResult.Details;
+            }
+            else
+            {
+                user.TestResults.Add(testResult);
+            }
+
+            _userSessions.Remove(user.Id);
         }
     }
-    
 }
