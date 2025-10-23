@@ -2,6 +2,7 @@ using System.Threading.Tasks;
 using MoodleTestReader.Logic;
 using MoodleTestReader.Models;
 using MoodleTestReader.Services;
+using MoodleTestReader.UI.Rendering;
 using Timer = System.Windows.Forms.Timer;
 
 namespace MoodleTestReader.UI
@@ -128,126 +129,80 @@ namespace MoodleTestReader.UI
                 return;
             }
 
-            var labelQuestion = new Label { Text = question.question, Location = new Point(10, 10), AutoSize = true };
-            _questionPanel.Controls.Add(labelQuestion);
+            // ... всередині ShowCurrentQuestionAsync, після перевірки на завершення:
+            QuestionRenderer.RenderQuestion(
+                _questionPanel,
+                question,
+                QuestionRenderMode.Play,
+                userAnswer: null,
+                includeQuestionTitle: true,
+                headerPrefix: null
+            );
 
-            switch (question)
-            {
-                case MultipleChoiceQuestion mcq:
-                {
-                    int y = 50;
-                    foreach (var option in mcq.Options)
-                    {
-                        var checkBox = new CheckBox { Text = option, Location = new Point(10, y), AutoSize = true };
-                        _questionPanel.Controls.Add(checkBox);
-                        y += 30;
-                    }
-                    break;
-                }
-                case FillInBlankQuestion:
-                {
-                    var textBox = new TextBox { Location = new Point(10, 50), Width = 200 };
-                    _questionPanel.Controls.Add(textBox);
-                    break;
-                }
-                case TrueFalseQuestion:
-                {
-                    var radioTrue = new RadioButton { Text = "True", Location = new Point(10, 50), AutoSize = true };
-                    var radioFalse = new RadioButton { Text = "False", Location = new Point(10, 80), AutoSize = true };
-                    _questionPanel.Controls.Add(radioTrue);
-                    _questionPanel.Controls.Add(radioFalse);
-                    break;
-                }
-                default:
-                {
-                    int y = 50;
-                    foreach (var option in question.Options)
-                    {
-                        var radio = new RadioButton { Text = option, Location = new Point(10, y), AutoSize = true };
-                        _questionPanel.Controls.Add(radio);
-                        y += 30;
-                    }
-                    break;
-                }
-            }
-
-            var buttonNext = new Button { Text = "Наступне", Location = new Point(10, 200), Width = 150, Height = 30 };
+            var buttonNext = new Button { Text = "Наступне", Location = new Point(10, 240), Width = 150, Height = 30 };
             buttonNext.Click += NextButton_Click;
             _questionPanel.Controls.Add(buttonNext);
 
-            // Запустити озвучення для поточного питання (якщо увімкнено у сервісі)
+            // Озвучення
             await _dictation.OnQuestionShownAsync(question);
         }
 
         private async void NextButton_Click(object sender, EventArgs e)
         {
             var question = _testManager.GetCurrentQuestionForUser(_currentUser);
-            object answer = null;
+            var answer = question != null ? ExtractAnswerFromQuestionPanel(question) : null;
 
-            switch (question)
-            {
-                case MultipleChoiceQuestion mcq:
-                {
-                    answer = new List<string>();
-                    foreach (Control control in _questionPanel.Controls)
-                    {
-                        if (control is CheckBox checkBox && checkBox.Checked)
-                        {
-                            ((List<string>)answer).Add(checkBox.Text);
-                        }
-                    }
-                    break;
-                }
-                case FillInBlankQuestion:
-                {
-                    foreach (Control control in _questionPanel.Controls)
-                    {
-                        if (control is TextBox textBox)
-                        {
-                            answer = textBox.Text;
-                            break;
-                        }
-                    }
-                    break;
-                }
-                case TrueFalseQuestion:
-                {
-                    foreach (Control control in _questionPanel.Controls)
-                    {
-                        if (control is RadioButton radio && radio.Checked)
-                        {
-                            answer = bool.Parse(radio.Text);
-                            break;
-                        }
-                    }
-                    break;
-                }
-                default:
-                {
-                    foreach (Control control in _questionPanel.Controls)
-                    {
-                        if (control is RadioButton radio && radio.Checked)
-                        {
-                            answer = radio.Text;
-                            break;
-                        }
-                    }
-                    break;
-                }
-            }
-
-            if (answer == null)
+            if (answer == null || (answer is List<string> list && list.Count == 0) || (answer is string s && string.IsNullOrWhiteSpace(s)))
             {
                 MessageBox.Show("Оберіть відповідь.");
                 return;
             }
 
-            // Повідомляємо сервіс про перехід (він скасовує поточне читання і збільшує номер)
             _dictation.OnNextQuestion();
-            _testManager.SubmitAnswerForUser(_currentUser, answer);
-
+            _testManager.SubmitAnswerForUser(_currentUser, answer!);
             _questionNumber++;
             await ShowCurrentQuestionAsync();
+        }
+        
+        /// <summary>
+        /// Збирає відповідь користувача з елементів _questionPanel згідно з типом питання.
+        /// </summary>
+        private object? ExtractAnswerFromQuestionPanel(Question question)
+        {
+            switch (question)
+            {
+                case MultipleChoiceQuestion:
+                {
+                    var selected = new List<string>();
+                    foreach (Control c in _questionPanel.Controls)
+                    {
+                        if (c is CheckBox cb && cb.Enabled && cb.Checked)
+                            selected.Add(cb.Text);
+                    }
+                    return selected;
+                }
+                case FillInBlankQuestion:
+                {
+                    foreach (Control c in _questionPanel.Controls)
+                        if (c is TextBox tb && !tb.ReadOnly)
+                            return tb.Text;
+                    return string.Empty;
+                }
+                case TrueFalseQuestion:
+                {
+                    foreach (Control c in _questionPanel.Controls)
+                        if (c is RadioButton rb && rb.Enabled && rb.Checked)
+                            return bool.Parse(rb.Text);
+                    return null;
+                }
+                default:
+                {
+                    foreach (Control c in _questionPanel.Controls)
+                        if (c is RadioButton rb && rb.Enabled && rb.Checked)
+                            return rb.Text;
+                    return null;
+                }
+            }
         }
 
         private void TestReview(object? sender, EventArgs e)
@@ -294,8 +249,7 @@ namespace MoodleTestReader.UI
                 return;
             }
 
-            // Останній результат цього тесту
-            var result = _currentUser.TestResults
+            var result = _currentUser.TestResults?
                 .Where(r => r.TestId == currentTest.Id)
                 .OrderByDescending(r => r.EndTime)
                 .FirstOrDefault();
@@ -306,7 +260,6 @@ namespace MoodleTestReader.UI
                 return;
             }
 
-            // UI огляду
             comboBoxTests.Visible = false;
             buttonStartTest.Visible = false;
             buttonReviewTest.Visible = false;
@@ -314,139 +267,98 @@ namespace MoodleTestReader.UI
 
             _questionPanel.Controls.Clear();
 
-            int y = 10;
-            int index = 1;
+            // Прокручуваний контейнер, щоб усе влізло
+            var reviewFlow = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                AutoScroll = true,
+                FlowDirection = FlowDirection.TopDown,
+                WrapContents = false,
+                Padding = new Padding(10),
+            };
 
+            reviewFlow.Resize += (_, __) =>
+            {
+                foreach (Control c in reviewFlow.Controls)
+                {
+                    if (c is Panel card)
+                    {
+                        card.Width = reviewFlow.ClientSize.Width - reviewFlow.Padding.Horizontal - 10;
+                    }
+                }
+            };
+
+            _questionPanel.Controls.Add(reviewFlow);
+
+            int index = 1;
             foreach (var q in currentTest.Questions)
             {
-                // Заголовок питання
-                var lbl = new Label
+                // Картка питання
+                var card = new Panel
                 {
-                    Text = $"{index}. {q.question}",
-                    Location = new Point(10, y),
+                    Margin = new Padding(0, 0, 0, 10),
+                    BorderStyle = BorderStyle.None,
+                    Width = reviewFlow.ClientSize.Width - reviewFlow.Padding.Horizontal - 10
+                };
+
+                // Контент питання (заголовок + варіанти рендерить рендерер)
+                var contentPanel = new Panel
+                {
+                    Location = new Point(0, 0),
+                    Width = card.Width
+                };
+
+                result.Details.TryGetValue(q.Id, out var aws);
+                var userAnswer = aws?.Answer;
+
+                // ВАЖЛИВО: заголовок малюємо ТУТ, а не окремим Label’ом вище, щоб уникнути дублю
+                QuestionRenderer.RenderQuestion(
+                    contentPanel,
+                    q,
+                    QuestionRenderMode.Review,
+                    userAnswer,
+                    includeQuestionTitle: true,
+                    headerPrefix: $"{index}. "
+                );
+
+                // Висота за найнижчим контролом
+                var contentBottom = contentPanel.Controls.Cast<Control>().Select(c => c.Bottom).DefaultIfEmpty(0).Max();
+                contentPanel.Height = contentBottom;
+
+                card.Controls.Add(contentPanel);
+
+                // Бали за питання
+                var pts = new Label
+                {
+                    Text = $"Бали: {(aws?.Points ?? 0)} з {q.Points}",
+                    Location = new Point(0, contentPanel.Bottom + 6),
                     AutoSize = true
                 };
-                _questionPanel.Controls.Add(lbl);
-                y += 28;
+                card.Controls.Add(pts);
 
-                // Беремо деталі (відповідь + бали), якщо є
-                result.Details.TryGetValue(q.Id, out var aws);
-                var ua = aws?.Answer;
+                // Підіб’ємо висоту картки
+                card.Height = pts.Bottom;
 
-                switch (q)
-                {
-                    case MultipleChoiceQuestion mcq:
-                    {
-                        foreach (var option in mcq.Options)
-                        {
-                            var chk = new CheckBox
-                            {
-                                Text = option,
-                                Location = new Point(20, y),
-                                AutoSize = true,
-                                Enabled = false,
-                                Checked = ua?.Type == "multi" && ua.List != null && ua.List.Contains(option)
-                            };
-                            _questionPanel.Controls.Add(chk);
-                            y += 24;
-                        }
-
-                        break;
-                    }
-                    case FillInBlankQuestion:
-                    {
-                        var tb = new TextBox
-                        {
-                            Location = new Point(20, y),
-                            Width = 400,
-                            ReadOnly = true,
-                            Text = (ua?.Type == "text") ? (ua.Text ?? string.Empty) : string.Empty
-                        };
-                        _questionPanel.Controls.Add(tb);
-                        y += 28;
-                        break;
-                    }
-                    case TrueFalseQuestion:
-                    {
-                        var rTrue = new RadioButton
-                        {
-                            Text = "True",
-                            Location = new Point(20, y),
-                            AutoSize = true,
-                            Enabled = false,
-                            Checked = ua?.Type == "bool" && ua.Bool == true
-                        };
-                        _questionPanel.Controls.Add(rTrue);
-                        y += 24;
-
-                        var rFalse = new RadioButton
-                        {
-                            Text = "False",
-                            Location = new Point(20, y),
-                            AutoSize = true,
-                            Enabled = false,
-                            Checked = ua?.Type == "bool" && ua.Bool == false
-                        };
-                        _questionPanel.Controls.Add(rFalse);
-                        y += 28;
-                        break;
-                    }
-                    default:
-                    {
-                        // SingleChoice
-                        foreach (var option in q.Options)
-                        {
-                            var rb = new RadioButton
-                            {
-                                Text = option,
-                                Location = new Point(20, y),
-                                AutoSize = true,
-                                Enabled = false,
-                                Checked = ua?.Type == "single" &&
-                                          string.Equals(ua.Text, option, StringComparison.OrdinalIgnoreCase)
-                            };
-                            _questionPanel.Controls.Add(rb);
-                            y += 24;
-                        }
-
-                        break;
-                    }
-                }
-
-                // Показати набрані бали за це питання (якщо є)
-                if (aws != null)
-                {
-                    var pts = new Label
-                    {
-                        Text = $"Бали: {aws.Points}",
-                        Location = new Point(20, y),
-                        AutoSize = true
-                    };
-                    _questionPanel.Controls.Add(pts);
-                    y += 24;
-                }
-
-                y += 8;
+                reviewFlow.Controls.Add(card);
                 index++;
             }
 
+            // Кнопка виходу з огляду
             var btnClose = new Button
             {
                 Text = "Закрити огляд",
-                Location = new Point(10, y + 10),
                 Width = 160,
-                Height = 30
+                Height = 30,
+                Margin = new Padding(0, 10, 0, 0)
             };
             btnClose.Click += (_, __) =>
             {
                 _questionPanel.Controls.Clear();
-
-                // Повернення до вибору тесту
                 comboBoxTests.Visible = true;
                 TestReview(null, EventArgs.Empty);
                 labelTime.Visible = false;
             };
-            _questionPanel.Controls.Add(btnClose);
+            reviewFlow.Controls.Add(btnClose);
         }
 
         private void TestTimer_Tick(object? sender, EventArgs e)
@@ -479,12 +391,6 @@ namespace MoodleTestReader.UI
                 // ОНОВИТИ СТАН КНОПОК ЗА ПОТОЧНИМ ВИБОРОМ
                 TestReview(null, EventArgs.Empty);
             }
-        }
-
-        protected override void OnFormClosing(FormClosingEventArgs e)
-        {
-            try { _dictation?.Dispose(); } catch { }
-            base.OnFormClosing(e);
         }
     }
 }

@@ -27,10 +27,7 @@ public class TestSession
 
     public Question? GetCurrentQuestion()
     {
-        if (_currentQuestionIndex >= SelectedQuestions.Count)
-        {
-            return null;
-        }
+        if (_currentQuestionIndex >= SelectedQuestions.Count) return null;
         return SelectedQuestions[_currentQuestionIndex];
     }
 
@@ -39,11 +36,9 @@ public class TestSession
         var currentQuestion = GetCurrentQuestion();
         if (currentQuestion == null) return;
 
-        // Оцінювання
         var score = currentQuestion.ValidateAnswer(answer) ? currentQuestion.Points : 0;
         Results[currentQuestion.Id] = score;
 
-        // Зберегти відповідь
         var ua = new UserAnswer();
         switch (currentQuestion)
         {
@@ -51,17 +46,14 @@ public class TestSession
                 ua.Type = "multi";
                 ua.List = (answer as List<string>) ?? new List<string>();
                 break;
-
             case FillInBlankQuestion:
                 ua.Type = "text";
                 ua.Text = answer as string ?? string.Empty;
                 break;
-
             case TrueFalseQuestion:
                 ua.Type = "bool";
                 if (answer is bool b) ua.Bool = b;
                 break;
-
             default:
                 ua.Type = "single";
                 ua.Text = answer as string ?? string.Empty;

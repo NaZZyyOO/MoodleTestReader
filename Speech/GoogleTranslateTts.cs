@@ -8,7 +8,7 @@ namespace MoodleTestReader.Speech;
 
 // Неофіційний Google Translate TTS (tl=uk|en), віддає MP3.
 // Відтворення через MCI (winmm) — без COM, без NuGet, без встановлення програм.
-public class GoogleTranslateTts : IDisposable
+public class GoogleTranslateTts : ITtsEngine
 {
     private readonly HttpClient _http = new HttpClient(new HttpClientHandler
     {
