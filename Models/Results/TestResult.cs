@@ -1,5 +1,3 @@
-using MoodleTestReader.Models.Results;
-
 namespace MoodleTestReader.Models.Results
 {
     public class TestResult

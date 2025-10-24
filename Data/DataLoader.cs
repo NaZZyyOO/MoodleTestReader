@@ -57,7 +57,6 @@ namespace MoodleTestReader.Data
                         DetailedResults TEXT,
                         FOREIGN KEY (UserId) REFERENCES Users(Id)
                     )";
-                // НОВА нормалізована таблиця з деталями по кожному питанню
                 const string createResultDetailsTable = @"
                     CREATE TABLE IF NOT EXISTS ResultDetails (
                         Id INT PRIMARY KEY AUTO_INCREMENT,

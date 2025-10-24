@@ -1,4 +1,3 @@
-using System.Drawing;
 using MoodleTestReader.Logic;
 using MoodleTestReader.Speech;
 
@@ -14,15 +13,11 @@ public class TestDictationService : IDisposable
     private bool _enabled;
 
     // Швидше читання — коротші паузи
-    private int _pauseAfterQuestionMs = 700;
-    private int _pauseBetweenOptionsMs = 250;
+    private const int PauseAfterQuestionMs = 700;
+    private const int PauseBetweenOptionsMs = 250;
 
     // Оголошення "Питання N з M" — вимкнено, щоб не було дублювань "Запитання"
-    private bool _announceCounts = false;
-
-    // Лічильники
-    private int _questionNumber;
-    private int _totalQuestions;
+    private readonly bool _announceCounts = false;
 
     public TestDictationService(Form hostForm)
     {
@@ -40,7 +35,7 @@ public class TestDictationService : IDisposable
             _enabled = _toggle.Checked;
             if (!_enabled)
             {
-                try { await _tts.CancelAsync(); } catch { }
+                try { await _tts.CancelAsync(); } catch {  }
                 _cts.Cancel();
             }
         };
@@ -67,14 +62,11 @@ public class TestDictationService : IDisposable
         _toggle.Visible = true;
         RepositionToggle();
     }
-
-    public void OnTestStarted(int totalQuestions)
+    
+    public void OnTestStarted()
     {
         // Ховаємо прапорець на час проходження тесту
         _toggle.Visible = false;
-
-        _totalQuestions = totalQuestions;
-        _questionNumber = 1;
 
         // Скинемо будь-яке активне озвучення
         _cts.Cancel();
@@ -83,7 +75,7 @@ public class TestDictationService : IDisposable
         _ = _tts.CancelAsync();
     }
 
-    public async Task OnQuestionShownAsync(Question q)
+    public async Task OnQuestionShownAsync(Question? q, int totalQuestions, int questionNumber)
     {
         if (!_enabled || q == null) return;
 
@@ -98,23 +90,16 @@ public class TestDictationService : IDisposable
             await _tts.SpeakQuestionAsync(
                 q.question,
                 q.Options,
-                _questionNumber,
-                _totalQuestions,
-                _pauseAfterQuestionMs,
-                _pauseBetweenOptionsMs,
+                questionNumber,
+                totalQuestions,
+                PauseAfterQuestionMs,
+                PauseBetweenOptionsMs,
                 _announceCounts,
                 _cts.Token
             );
         }
         catch (OperationCanceledException) { /* тихо ігноруємо */ }
         catch { /* інші помилки — не валимо UI */ }
-    }
-
-    public void OnNextQuestion()
-    {
-        _questionNumber++;
-        _cts.Cancel();
-        _ = _tts.CancelAsync();
     }
 
     public async Task OnTestFinishedAsync(int score)
@@ -131,7 +116,6 @@ public class TestDictationService : IDisposable
                 await _tts.SpeakScoreAsync(score, _cts.Token);
             }
             catch (OperationCanceledException) { }
-            catch { }
         }
 
         // Повернути перемикач після завершення

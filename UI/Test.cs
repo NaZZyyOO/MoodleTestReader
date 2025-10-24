@@ -1,4 +1,3 @@
-using System.Threading.Tasks;
 using MoodleTestReader.Logic;
 using MoodleTestReader.Models;
 using MoodleTestReader.Services;
@@ -69,23 +68,27 @@ namespace MoodleTestReader.UI
                 comboBoxTests.Items.Add(test.TestName);
             }
         }
-
+        
+        // Один з головних методів: початок тесту
         private async void StartTestButton_Click(object? sender, EventArgs e)
         {
+            // Перевіряємо, чи був обраний який небудь тест
             if (comboBoxTests.SelectedIndex == -1)
             {
                 MessageBox.Show("Оберіть тест.");
                 return;
             }
-
-            var selectedTestName = comboBoxTests.SelectedItem.ToString();
+            
+            // Перевіряємо чи такий тест існує
+            var selectedTestName = comboBoxTests.SelectedItem?.ToString();
             var currentTest = _testManager.GetAvailableTests().FirstOrDefault(t => t.TestName == selectedTestName);
             if (currentTest == null)
             {
                 MessageBox.Show("Тест не знайдено.");
                 return;
             }
-
+            
+            // Розпочинаємо сесію тесту: показуємо та ховаємо певні кнопки, запускаємо таймер
             _testManager.StartTestForUser(_currentUser, currentTest.Id);
             _remainingTime = currentTest.TimeLimit * 60;
             labelTime.Text = $"Залишилось: {currentTest.TimeLimit}:00";
@@ -95,20 +98,25 @@ namespace MoodleTestReader.UI
             labelTime.Visible = true;
             _startTime = DateTime.Now;
             _testTimer.Start();
-
+            
+            // Перше запитання та загальна кількість питань
             _questionNumber = 1;
             _totalQuestions = currentTest.Questions.Count;
 
-            // Сховати прапорець і підготувати сервіс
-            _dictation.OnTestStarted(_totalQuestions);
-
+            // Сховати прапорець про озвучку і підготувати сервіс
+            _dictation.OnTestStarted();
+            
+            // Асинхронно показуємо поточне питання для користувача
             await ShowCurrentQuestionAsync();
         }
 
         private async Task ShowCurrentQuestionAsync()
         {
             _questionPanel.Controls.Clear();
+            
+            // Отримуємо поточне запитання з тестової сесії користувача
             var question = _testManager.GetCurrentQuestionForUser(_currentUser);
+            // Якщо далі немає запитань - тест закінчується
             if (question == null)
             {
                 _testTimer.Stop();
@@ -128,8 +136,8 @@ namespace MoodleTestReader.UI
                 MessageBox.Show($"Тест завершено. Ваш результат: {score} балів. Залишковий час: {TimeSpan.FromSeconds(_remainingTime):mm\\:ss}");
                 return;
             }
-
-            // ... всередині ShowCurrentQuestionAsync, після перевірки на завершення:
+            
+            // Рендер запитання
             QuestionRenderer.RenderQuestion(
                 _questionPanel,
                 question,
@@ -144,22 +152,27 @@ namespace MoodleTestReader.UI
             _questionPanel.Controls.Add(buttonNext);
 
             // Озвучення
-            await _dictation.OnQuestionShownAsync(question);
+            await _dictation.OnQuestionShownAsync(question, _totalQuestions, _questionNumber);
         }
 
         private async void NextButton_Click(object sender, EventArgs e)
         {
+            // Отримуємо поточне запитання з тестової сесії користувача
             var question = _testManager.GetCurrentQuestionForUser(_currentUser);
-            var answer = question != null ? ExtractAnswerFromQuestionPanel(question) : null;
-
+            
+            // Зберігаємо відповідь на запитання
+            object? answer = ExtractAnswerFromQuestionPanel(question);
+            
+            // Якщо варіант/варіанти не обраний(і)/введена
             if (answer == null || (answer is List<string> list && list.Count == 0) || (answer is string s && string.IsNullOrWhiteSpace(s)))
             {
                 MessageBox.Show("Оберіть відповідь.");
                 return;
             }
-
-            _dictation.OnNextQuestion();
-            _testManager.SubmitAnswerForUser(_currentUser, answer!);
+            
+            // Перевірка запитання, нарахування балів
+            _testManager.SubmitAnswerForUser(_currentUser, answer);
+            // Наступне запитання
             _questionNumber++;
             await ShowCurrentQuestionAsync();
         }
@@ -171,6 +184,7 @@ namespace MoodleTestReader.UI
         {
             switch (question)
             {
+                // Вибір декількох відповідей
                 case MultipleChoiceQuestion:
                 {
                     var selected = new List<string>();
@@ -181,6 +195,7 @@ namespace MoodleTestReader.UI
                     }
                     return selected;
                 }
+                // Вписати відповідь
                 case FillInBlankQuestion:
                 {
                     foreach (Control c in _questionPanel.Controls)
@@ -188,6 +203,7 @@ namespace MoodleTestReader.UI
                             return tb.Text;
                     return string.Empty;
                 }
+                // Так/Ні
                 case TrueFalseQuestion:
                 {
                     foreach (Control c in _questionPanel.Controls)
@@ -195,6 +211,7 @@ namespace MoodleTestReader.UI
                             return bool.Parse(rb.Text);
                     return null;
                 }
+                // Звичайне запитання, одна відповідь
                 default:
                 {
                     foreach (Control c in _questionPanel.Controls)
@@ -204,17 +221,17 @@ namespace MoodleTestReader.UI
                 }
             }
         }
-
+        
+        // Певні дії з інтерфейсом коли була дія з вибором тесту
         private void TestReview(object? sender, EventArgs e)
         {
+            // Перевірка чи обраний тест, якщо так, шукаємо тест з такою назвою
             if (comboBoxTests.SelectedItem == null) return;
             var selectedTestName = comboBoxTests.SelectedItem.ToString();
             var currentTest = _testManager.GetAvailableTests().FirstOrDefault(t => t.TestName == selectedTestName);
 
             if (currentTest != null)
             {
-                Console.WriteLine("Поточне айді тесту для перевірки: " + currentTest.Id);
-
                 if (_currentUser.TestResults.Any(result => result.TestId == currentTest.Id))
                 {
                     // Є результати — показуємо Огляд, ховаємо Старт
@@ -232,25 +249,29 @@ namespace MoodleTestReader.UI
                 _dictation.OnTestSelected();
             }
         }
-
+        
+        // Один з головних методів: огляд тесту
         private void TestReview_Click(object? sender, EventArgs e)
         {
-            if (comboBoxTests.SelectedItem == null)
+            
+            // Перевіряємо, чи був обраний який небудь тест
+            if (comboBoxTests.SelectedIndex == -1)
             {
-                MessageBox.Show("Оберіть тест для огляду.");
+                MessageBox.Show("Оберіть тест.");
                 return;
             }
-
-            var selectedTestName = comboBoxTests.SelectedItem.ToString();
+            
+            // Перевіряємо чи такий тест існує
+            var selectedTestName = comboBoxTests.SelectedItem?.ToString();
             var currentTest = _testManager.GetAvailableTests().FirstOrDefault(t => t.TestName == selectedTestName);
             if (currentTest == null)
             {
                 MessageBox.Show("Тест не знайдено.");
                 return;
             }
-
-            var result = _currentUser.TestResults?
-                .Where(r => r.TestId == currentTest.Id)
+            
+            // Шукаємо результати тесту цього користувача
+            var result = _currentUser.TestResults.Where(r => r.TestId == currentTest.Id)
                 .OrderByDescending(r => r.EndTime)
                 .FirstOrDefault();
 
@@ -267,7 +288,7 @@ namespace MoodleTestReader.UI
 
             _questionPanel.Controls.Clear();
 
-            // Прокручуваний контейнер, щоб усе влізло
+            // Прокручуваний контейнер де відображаються всі запитання 
             var reviewFlow = new FlowLayoutPanel
             {
                 Dock = DockStyle.Fill,
@@ -277,7 +298,7 @@ namespace MoodleTestReader.UI
                 Padding = new Padding(10),
             };
 
-            reviewFlow.Resize += (_, __) =>
+            reviewFlow.Resize += (_, _) =>
             {
                 foreach (Control c in reviewFlow.Controls)
                 {
@@ -311,7 +332,7 @@ namespace MoodleTestReader.UI
                 result.Details.TryGetValue(q.Id, out var aws);
                 var userAnswer = aws?.Answer;
 
-                // ВАЖЛИВО: заголовок малюємо ТУТ, а не окремим Label’ом вище, щоб уникнути дублю
+                // ВАЖЛИВО: заголовок малюємо ТУТ, а не окремим Label’ом вище, щоб уникнути дублювання
                 QuestionRenderer.RenderQuestion(
                     contentPanel,
                     q,
@@ -351,7 +372,7 @@ namespace MoodleTestReader.UI
                 Height = 30,
                 Margin = new Padding(0, 10, 0, 0)
             };
-            btnClose.Click += (_, __) =>
+            btnClose.Click += (_, _) =>
             {
                 _questionPanel.Controls.Clear();
                 comboBoxTests.Visible = true;
@@ -360,7 +381,8 @@ namespace MoodleTestReader.UI
             };
             reviewFlow.Controls.Add(btnClose);
         }
-
+        
+        // Метод для відображення змін в таймері
         private void TestTimer_Tick(object? sender, EventArgs e)
         {
             if (_remainingTime > 0)

@@ -1,4 +1,3 @@
-using System.Net.Http;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Web;
@@ -8,7 +7,7 @@ namespace MoodleTestReader.Speech;
 
 // Неофіційний Google Translate TTS (tl=uk|en), віддає MP3.
 // Відтворення через MCI (winmm) — без COM, без NuGet, без встановлення програм.
-public class GoogleTranslateTts : ITtsEngine
+public class GoogleTranslateTts
 {
     private readonly HttpClient _http = new HttpClient(new HttpClientHandler
     {
