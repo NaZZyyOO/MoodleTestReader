@@ -8,7 +8,7 @@ namespace MoodleTestReader.UI
 {
     public partial class Test : Form
     {
-        private User _currentUser;
+        private User? _currentUser;
         private TestManager _testManager;
         private readonly Timer _testTimer;
         private int _remainingTime; // в секундах
@@ -16,7 +16,7 @@ namespace MoodleTestReader.UI
         private Panel _questionPanel;
 
         // Диктування винесене у сервіс
-        private TestDictationService _dictation;
+        private readonly TestDictationService _dictation;
 
         // Лічильники питань
         private int _questionNumber;
@@ -115,44 +115,47 @@ namespace MoodleTestReader.UI
             _questionPanel.Controls.Clear();
             
             // Отримуємо поточне запитання з тестової сесії користувача
-            var question = _testManager.GetCurrentQuestionForUser(_currentUser);
-            // Якщо далі немає запитань - тест закінчується
-            if (question == null)
+            if (_currentUser != null)
             {
-                _testTimer.Stop();
-                _testManager.SaveResultsForUser(_currentUser, out int score, _startTime);
+                var question = _testManager.GetCurrentQuestionForUser(_currentUser);
+                // Якщо далі немає запитань - тест закінчується
+                if (question == null)
+                {
+                    _testTimer.Stop();
+                    _testManager.SaveResultsForUser(_currentUser, out int score, _startTime);
 
-                // Повернути UI вибору тесту
-                comboBoxTests.Visible = true;
-                buttonStartTest.Visible = true;
-                labelTime.Visible = false;
+                    // Повернути UI вибору тесту
+                    comboBoxTests.Visible = true;
+                    buttonStartTest.Visible = true;
+                    labelTime.Visible = false;
 
-                // Озвучити результат і повернути перемикач
-                await _dictation.OnTestFinishedAsync(score);
+                    // Озвучити результат і повернути перемикач
+                    await _dictation.OnTestFinishedAsync(score);
 
-                // ОНОВИТИ СТАН КНОПОК ЗА ПОТОЧНИМ ВИБОРОМ
-                TestReview(null, EventArgs.Empty);
+                    // ОНОВИТИ СТАН КНОПОК ЗА ПОТОЧНИМ ВИБОРОМ
+                    TestReview(null, EventArgs.Empty);
 
-                MessageBox.Show($"Тест завершено. Ваш результат: {score} балів. Залишковий час: {TimeSpan.FromSeconds(_remainingTime):mm\\:ss}");
-                return;
-            }
+                    MessageBox.Show($"Тест завершено. Ваш результат: {score} балів. Залишковий час: {TimeSpan.FromSeconds(_remainingTime):mm\\:ss}");
+                    return;
+                }
             
-            // Рендер запитання
-            QuestionRenderer.RenderQuestion(
-                _questionPanel,
-                question,
-                QuestionRenderMode.Play,
-                userAnswer: null,
-                includeQuestionTitle: true,
-                headerPrefix: null
-            );
+                // Рендер запитання
+                QuestionRenderer.RenderQuestion(
+                    _questionPanel,
+                    question,
+                    QuestionRenderMode.Play,
+                    userAnswer: null,
+                    includeQuestionTitle: true,
+                    headerPrefix: null
+                );
 
-            var buttonNext = new Button { Text = "Наступне", Location = new Point(10, 240), Width = 150, Height = 30 };
-            buttonNext.Click += NextButton_Click;
-            _questionPanel.Controls.Add(buttonNext);
+                var buttonNext = new Button { Text = "Наступне", Location = new Point(10, 240), Width = 150, Height = 30 };
+                buttonNext.Click += NextButton_Click;
+                _questionPanel.Controls.Add(buttonNext);
 
-            // Озвучення
-            await _dictation.OnQuestionShownAsync(question, _totalQuestions, _questionNumber);
+                // Озвучення
+                await _dictation.OnQuestionShownAsync(question, _totalQuestions, _questionNumber);
+            }
         }
 
         private async void NextButton_Click(object sender, EventArgs e)
@@ -232,7 +235,7 @@ namespace MoodleTestReader.UI
 
             if (currentTest != null)
             {
-                if (_currentUser.TestResults.Any(result => result.TestId == currentTest.Id))
+                if (_currentUser != null && _currentUser.TestResults.Any(result => result.TestId == currentTest.Id))
                 {
                     // Є результати — показуємо Огляд, ховаємо Старт
                     buttonStartTest.Visible = false;
