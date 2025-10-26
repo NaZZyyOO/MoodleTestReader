@@ -3,8 +3,7 @@ using System.Speech.Recognition;
 
 namespace MoodleTestReader.Services
 {
-    // Слухач голосових команд. Працює тільки коли активовано (TTS увімкнений).
-    // Режим Selection: команди для вибору/старту/огляду тесту.
+    // Слухач голосових команд. Працює тільки коли активовано (TTS увімкнений)
     public class VoiceCommandService : IDisposable
     {
         private readonly Form _hostForm;
@@ -12,10 +11,14 @@ namespace MoodleTestReader.Services
         private readonly Func<List<string>> _getTestNames;
 
         private SpeechRecognitionEngine? _engine;
-        private CultureInfo _culture = new CultureInfo("uk-UA");
-        private bool _active;
+        private RecognizerInfo? _recognizer;
+        private bool _available;   // є встановлений розпізнавач і вхідний аудіопристрій
+        private bool _active;      // ввімкнений користувачем (через TTS)
         private bool _inSelectionMode = true;
+
         private List<string> _cachedNames = new();
+
+        public bool IsAvailable => _available;
 
         public VoiceCommandService(Form hostForm, Action<VoiceCommand> onCommand, Func<List<string>> getTestNames)
         {
@@ -29,25 +32,16 @@ namespace MoodleTestReader.Services
         public void Dispose()
         {
             try { Stop(); } catch { }
-            _engine?.Dispose();
+            try { _engine?.Dispose(); } catch { }
         }
 
-        // Вмикання/вимикання слухача (керується прапорцем TTS)
         public void SetActive(bool active)
         {
-            _active = active;
-            if (_active)
-            {
-                EnsureSelectionMode(); // за замовчуванням — на екрані вибору
-                Start();
-            }
-            else
-            {
-                Stop();
-            }
+            _active = active && _available;
+            if (_active) Start();
+            else Stop();
         }
 
-        // Викликати на екрані вибору тесту
         public void OnSelectionScreen(bool activeNow)
         {
             _inSelectionMode = true;
@@ -55,15 +49,13 @@ namespace MoodleTestReader.Services
             UpdateSelectionGrammar();
         }
 
-        // Викликати на старті тесту
         public void OnTestStarted(bool activeNow)
         {
             _inSelectionMode = false;
             SetActive(activeNow);
-            // наразі не додаємо in-test команди — вимога була про екран вибору
+            // наразі граматика тільки для екрана вибору
         }
 
-        // Викликати після завершення тесту (повернулися на екран вибору)
         public void OnTestFinished(bool activeNow)
         {
             _inSelectionMode = true;
@@ -71,11 +63,9 @@ namespace MoodleTestReader.Services
             UpdateSelectionGrammar();
         }
 
-        // Оновити граматику імен тестів (при зміні списку)
         public void UpdateSelectionGrammar()
         {
-            if (_engine == null) return;
-            if (!_inSelectionMode) return;
+            if (!_available || _engine == null || !_inSelectionMode) return;
 
             var names = _getTestNames() ?? new List<string>();
             var normalized = names
@@ -83,12 +73,8 @@ namespace MoodleTestReader.Services
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
-            // Якщо назви не змінилися — не перебудовуємо
-            if (normalized.Count == _cachedNames.Count &&
-                normalized.All(_cachedNames.Contains))
-            {
+            if (normalized.Count == _cachedNames.Count && normalized.All(_cachedNames.Contains))
                 return;
-            }
 
             _cachedNames = normalized;
             RebuildSelectionGrammar();
@@ -98,35 +84,74 @@ namespace MoodleTestReader.Services
         {
             try
             {
-                // Пробуємо українську; якщо відсутній мовний пакет — fallback на en-US
-                _engine = new SpeechRecognitionEngine(_culture);
+                var installed = SpeechRecognitionEngine.InstalledRecognizers();
+                if (installed == null || installed.Count == 0)
+                {
+                    _available = false;
+                    _engine = null;
+                    return;
+                }
+
+                // Пріоритет підбору розпізнавача
+                string[] preferred = { "uk-UA", "uk", "en-US", "en" };
+
+                _recognizer =
+                    installed.FirstOrDefault(r => r.Culture.Name.Equals("uk-UA", StringComparison.OrdinalIgnoreCase)) ??
+                    installed.FirstOrDefault(r => r.Culture.TwoLetterISOLanguageName.Equals("uk", StringComparison.OrdinalIgnoreCase)) ??
+                    installed.FirstOrDefault(r => r.Culture.Name.Equals("en-US", StringComparison.OrdinalIgnoreCase)) ??
+                    installed.FirstOrDefault(r => r.Culture.TwoLetterISOLanguageName.Equals("en", StringComparison.OrdinalIgnoreCase)) ??
+                    installed.FirstOrDefault();
+
+                if (_recognizer == null)
+                {
+                    _available = false;
+                    _engine = null;
+                    return;
+                }
+
+                _engine = new SpeechRecognitionEngine(_recognizer);
+
+                // Спроба підключити мікрофон
+                try
+                {
+                    _engine.SetInputToDefaultAudioDevice();
+                }
+                catch
+                {
+                    // Немає вхідного пристрою — відключаємо сервіс
+                    _available = false;
+                    _engine.Dispose();
+                    _engine = null;
+                    return;
+                }
+
+                _engine.SpeechRecognized += EngineOnSpeechRecognized;
+                _engine.RecognizeCompleted += (_, __) => { };
+
+                _available = true;
+
+                // Початкова граматика (екран вибору)
+                RebuildSelectionGrammar();
             }
             catch
             {
-                _culture = new CultureInfo("en-US");
-                _engine = new SpeechRecognitionEngine(_culture);
+                _available = false;
+                _engine = null;
             }
-
-            _engine.SpeechRecognized += EngineOnSpeechRecognized;
-            _engine.RecognizeCompleted += (_, __) => { /* ignore */ };
-
-            _engine.SetInputToDefaultAudioDevice();
-
-            // Початкова граматика — для екрана вибору
-            RebuildSelectionGrammar();
         }
 
         private void Start()
         {
-            if (_engine == null) return;
+            if (!_available || _engine == null) return;
             try
             {
-                if (_engine.AudioState == AudioState.Stopped || _engine.AudioState == AudioState.Silence)
-                {
-                    _engine.RecognizeAsync(RecognizeMode.Multiple);
-                }
+                _engine.RecognizeAsync(RecognizeMode.Multiple);
             }
-            catch { /* already started or no device */ }
+            catch
+            {
+                // Якщо не вдалося запустити — вимикаємо до наступної спроби
+                _available = false;
+            }
         }
 
         private void Stop()
@@ -136,14 +161,9 @@ namespace MoodleTestReader.Services
             try { _engine.RecognizeAsyncStop(); } catch { }
         }
 
-        private void EnsureSelectionMode()
-        {
-            _inSelectionMode = true;
-        }
-
         private void RebuildSelectionGrammar()
         {
-            if (_engine == null) return;
+            if (!_available || _engine == null || _recognizer == null) return;
 
             try
             {
@@ -152,43 +172,38 @@ namespace MoodleTestReader.Services
             }
             catch { }
 
-            var grammars = BuildSelectionGrammars(_cachedNames, _culture);
-            foreach (var g in grammars)
+            var culture = _recognizer.Culture;
+            foreach (var g in BuildSelectionGrammars(_cachedNames, culture))
             {
                 try { _engine.LoadGrammar(g); } catch { }
             }
         }
 
-        // Команди екрана вибору: старт, огляд, навігація, вибір тесту за назвою, керування TTS, вихід
         private static IEnumerable<Grammar> BuildSelectionGrammars(List<string> testNames, CultureInfo culture)
         {
             var grammars = new List<Grammar>();
 
-            // 1) Старт/Огляд/Вихід/Увімкнути/Вимкнути/Навігація
+            // 1) Базові команди
             {
                 var builder = new Choices();
 
-                // Українські варіанти
+                // UA
                 builder.Add(new SemanticResultValue("почати тест", "start"));
                 builder.Add(new SemanticResultValue("почати", "start"));
-
                 builder.Add(new SemanticResultValue("огляд тесту", "review"));
                 builder.Add(new SemanticResultValue("огляд", "review"));
                 builder.Add(new SemanticResultValue("перегляд тесту", "review"));
                 builder.Add(new SemanticResultValue("перегляд", "review"));
-
                 builder.Add(new SemanticResultValue("наступний тест", "next"));
                 builder.Add(new SemanticResultValue("попередній тест", "prev"));
                 builder.Add(new SemanticResultValue("перший тест", "first"));
                 builder.Add(new SemanticResultValue("останній тест", "last"));
-
                 builder.Add(new SemanticResultValue("увімкнути озвучення", "tts_on"));
                 builder.Add(new SemanticResultValue("вимкнути озвучення", "tts_off"));
-
                 builder.Add(new SemanticResultValue("вийти", "exit"));
                 builder.Add(new SemanticResultValue("закрити застосунок", "exit"));
 
-                // Англійські дублікати (fallback на en-US)
+                // EN (fallback)
                 builder.Add(new SemanticResultValue("start test", "start"));
                 builder.Add(new SemanticResultValue("start", "start"));
                 builder.Add(new SemanticResultValue("review test", "review"));
@@ -207,11 +222,10 @@ namespace MoodleTestReader.Services
                 grammars.Add(new Grammar(gb) { Name = "core_commands" });
             }
 
-            // 2) Вибір тесту за назвою: "вибрати тест {назва}" / "обрати тест {назва}" / "select test {name}"
+            // 2) Вибір за назвою
             if (testNames.Count > 0)
             {
                 var namesChoices = new Choices(testNames.ToArray());
-
                 foreach (var phrase in new[] { "вибрати тест", "обрати тест", "select test" })
                 {
                     var gb = new GrammarBuilder { Culture = culture };
@@ -226,13 +240,11 @@ namespace MoodleTestReader.Services
 
         private void EngineOnSpeechRecognized(object? sender, SpeechRecognizedEventArgs e)
         {
-            if (!_active) return; // вимкнено правилами
-            if (e.Result == null) return;
-            if (e.Result.Confidence < 0.70f) return; // простий поріг впевненості
+            if (!_available || !_active) return;
+            if (e.Result == null || e.Result.Confidence < 0.70f) return;
 
             var cmd = new VoiceCommand { Type = VoiceCommandType.None };
 
-            // Команди з SemanticResultKey "cmd"
             if (e.Result.Semantics.ContainsKey("cmd"))
             {
                 var val = e.Result.Semantics["cmd"].Value?.ToString() ?? string.Empty;
@@ -250,7 +262,6 @@ namespace MoodleTestReader.Services
                     _ => VoiceCommandType.None
                 };
             }
-            // Вибір тесту за назвою
             else if (e.Result.Semantics.ContainsKey("testName"))
             {
                 cmd.Type = VoiceCommandType.SelectTestByName;
@@ -258,7 +269,6 @@ namespace MoodleTestReader.Services
             }
             else
             {
-                // як fallback — пробуємо за текстом
                 var text = e.Result.Text?.ToLowerInvariant() ?? string.Empty;
                 if (text.Contains("почати") || text.Contains("start")) cmd.Type = VoiceCommandType.StartTest;
                 else if (text.Contains("огляд") || text.Contains("review")) cmd.Type = VoiceCommandType.ReviewTest;
@@ -271,12 +281,7 @@ namespace MoodleTestReader.Services
 
             if (cmd.Type == VoiceCommandType.None) return;
 
-            try
-            {
-                // Перекидаємо в UI-потік форми
-                _hostForm.BeginInvoke(_onCommand, cmd);
-            }
-            catch { /* ignore */ }
+            try { _hostForm.BeginInvoke(_onCommand, cmd); } catch { }
         }
     }
 }

@@ -18,7 +18,7 @@ namespace MoodleTestReader.UI
         // Диктування
         private readonly TestDictationService _dictation;
         // Голосові команди
-        private VoiceCommandService _voice;
+        private readonly VoiceCommandService _voice;
 
         // Лічильники питань
         private int _questionNumber;
@@ -28,6 +28,14 @@ namespace MoodleTestReader.UI
         {
             InitializeComponent();
             InitializeComponents();
+            
+            // Голосові команди: передаємо спосіб отримати назви тестів і колбек
+            _voice = new VoiceCommandService(
+                this,
+                OnVoiceCommand,
+                () => _testManager?.GetAvailableTests().Select(t => t.TestName).ToList() ?? new List<string>());
+            _dictation = new TestDictationService(this);
+            
             ShowLoginScreen();
 
             _testTimer = new Timer { Interval = 1000 };
@@ -36,14 +44,6 @@ namespace MoodleTestReader.UI
             comboBoxTests.Click += TestReview;
             comboBoxTests.SelectedIndexChanged += TestReview;
             comboBoxTests.SelectedValueChanged += TestReview;
-
-            _dictation = new TestDictationService(this);
-            
-            // Голосові команди: передаємо спосіб отримати назви тестів і колбек
-            _voice = new VoiceCommandService(
-                this,
-                OnVoiceCommand,
-                () => _testManager?.GetAvailableTests().Select(t => t.TestName).ToList() ?? new List<string>());
 
             // Голосові команди вмикаються/вимикаються разом із TTS (без окремого прапорця)
             _dictation.EnabledChanged += (_, enabled) =>

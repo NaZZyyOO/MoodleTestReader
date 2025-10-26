@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("MoodleTestReader")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+09a5a1027e77dc1f2a0152dc2f3365c942f86da6")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+12ddc150d16e6181e9e41b4749d15e3e88c17637")]
 [assembly: System.Reflection.AssemblyProductAttribute("MoodleTestReader")]
 [assembly: System.Reflection.AssemblyTitleAttribute("MoodleTestReader")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
