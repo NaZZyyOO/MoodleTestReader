@@ -17,8 +17,6 @@ namespace MoodleTestReader.UI
 
         // Диктування
         private readonly TestDictationService _dictation;
-        // Голосові команди
-        private readonly VoiceCommandService _voice;
 
         // Лічильники питань
         private int _questionNumber;
@@ -29,11 +27,6 @@ namespace MoodleTestReader.UI
             InitializeComponent();
             InitializeComponents();
             
-            // Голосові команди: передаємо спосіб отримати назви тестів і колбек
-            _voice = new VoiceCommandService(
-                this,
-                OnVoiceCommand,
-                () => _testManager?.GetAvailableTests().Select(t => t.TestName).ToList() ?? new List<string>());
             _dictation = new TestDictationService(this);
             
             ShowLoginScreen();
@@ -44,13 +37,7 @@ namespace MoodleTestReader.UI
             comboBoxTests.Click += TestReview;
             comboBoxTests.SelectedIndexChanged += TestReview;
             comboBoxTests.SelectedValueChanged += TestReview;
-
-            // Голосові команди вмикаються/вимикаються разом із TTS (без окремого прапорця)
-            _dictation.EnabledChanged += (_, enabled) =>
-            {
-                // На екрані вибору
-                _voice.OnSelectionScreen(enabled);
-            };
+            
         }
 
         private void InitializeComponents()
@@ -68,11 +55,8 @@ namespace MoodleTestReader.UI
                 _testManager = new TestManager();
                 LoadAvailableTests();
                 
-                // Оновити граматику вибору тестів голосом
-                _voice.UpdateSelectionGrammar();
                 // Показати перемикач TTS; і відповідно увімкнути/вимкнути слухач
                 _dictation.OnTestSelected();
-                _voice.OnSelectionScreen(_dictation.IsEnabled);
             }
             else
             {
@@ -89,8 +73,6 @@ namespace MoodleTestReader.UI
                 comboBoxTests.Items.Add(test.TestName);
             }
             
-            // Після оновлення списку — оновити граматику
-            _voice.UpdateSelectionGrammar();
         }
         
         // Один з головних методів: початок тесту
@@ -130,9 +112,6 @@ namespace MoodleTestReader.UI
             // Сховати прапорець про озвучку і підготувати сервіс
             _dictation.OnTestStarted();
             
-            // Голосові команди: під час тесту — активні тільки якщо TTS увімкнений
-            _voice.OnTestStarted(_dictation.IsEnabled);
-            
             // Асинхронно показуємо поточне питання для користувача
             await ShowCurrentQuestionAsync();
         }
@@ -161,9 +140,6 @@ namespace MoodleTestReader.UI
 
                     // ОНОВИТИ СТАН КНОПОК ЗА ПОТОЧНИМ ВИБОРОМ
                     TestReview(null, EventArgs.Empty);
-                    
-                    _voice.OnTestFinished(_dictation.IsEnabled);
-                    _voice.UpdateSelectionGrammar();
 
                     MessageBox.Show($"Тест завершено. Ваш результат: {score} балів. Залишковий час: {TimeSpan.FromSeconds(_remainingTime):mm\\:ss}");
                     return;
@@ -194,7 +170,7 @@ namespace MoodleTestReader.UI
             var question = _testManager.GetCurrentQuestionForUser(_currentUser);
             
             // Зберігаємо відповідь на запитання
-            object? answer = ExtractAnswerFromQuestionPanel(question);
+            var answer = ExtractAnswerFromQuestionPanel(question);
             
             // Якщо варіант/варіанти не обраний(і)/введена
             if (answer == null || (answer is List<string> list && list.Count == 0) || (answer is string s && string.IsNullOrWhiteSpace(s)))
@@ -280,10 +256,6 @@ namespace MoodleTestReader.UI
 
                 // Показуємо перемикач диктування на екрані вибору
                 _dictation.OnTestSelected();
-                
-                // На екрані вибору — голосові команди активні відповідно до стану TTS
-                _voice.OnSelectionScreen(_dictation.IsEnabled);
-                _voice.UpdateSelectionGrammar();
             }
         }
         
@@ -308,7 +280,7 @@ namespace MoodleTestReader.UI
             }
             
             // Шукаємо результати тесту цього користувача
-            var result = _currentUser.TestResults.Where(r => r.TestId == currentTest.Id)
+            var result = _currentUser?.TestResults.Where(r => r.TestId == currentTest.Id)
                 .OrderByDescending(r => r.EndTime)
                 .FirstOrDefault();
 
@@ -450,73 +422,6 @@ namespace MoodleTestReader.UI
                 // ОНОВИТИ СТАН КНОПОК ЗА ПОТОЧНИМ ВИБОРОМ
                 TestReview(null, EventArgs.Empty);
                 
-                // Повернути слухач голосу в режим вибору
-                _voice.OnTestFinished(_dictation.IsEnabled);
-                _voice.UpdateSelectionGrammar();
-            }
-        }
-        // Обробка голосових команд (у UI-потоці)
-        private void OnVoiceCommand(VoiceCommand cmd)
-        {
-            switch (cmd.Type)
-            {
-                case VoiceCommandType.StartTest:
-                    if (buttonStartTest.Visible)
-                        StartTestButton_Click(this, EventArgs.Empty);
-                    break;
-
-                case VoiceCommandType.ReviewTest:
-                    if (buttonReviewTest.Visible)
-                        TestReview_Click(this, EventArgs.Empty);
-                    break;
-
-                case VoiceCommandType.SelectTestByName:
-                    if (!string.IsNullOrWhiteSpace(cmd.Argument))
-                    {
-                        var name = cmd.Argument;
-                        for (int i = 0; i < comboBoxTests.Items.Count; i++)
-                        {
-                            var item = comboBoxTests.Items[i]?.ToString();
-                            if (string.Equals(item, name, StringComparison.OrdinalIgnoreCase))
-                            {
-                                comboBoxTests.SelectedIndex = i;
-                                break;
-                            }
-                        }
-                    }
-                    break;
-
-                case VoiceCommandType.NextTest:
-                    if (comboBoxTests.Items.Count > 0)
-                        comboBoxTests.SelectedIndex = Math.Min(comboBoxTests.SelectedIndex + 1, comboBoxTests.Items.Count - 1);
-                    break;
-
-                case VoiceCommandType.PreviousTest:
-                    if (comboBoxTests.Items.Count > 0)
-                        comboBoxTests.SelectedIndex = Math.Max(comboBoxTests.SelectedIndex - 1, 0);
-                    break;
-
-                case VoiceCommandType.FirstTest:
-                    if (comboBoxTests.Items.Count > 0)
-                        comboBoxTests.SelectedIndex = 0;
-                    break;
-
-                case VoiceCommandType.LastTest:
-                    if (comboBoxTests.Items.Count > 0)
-                        comboBoxTests.SelectedIndex = comboBoxTests.Items.Count - 1;
-                    break;
-
-                case VoiceCommandType.EnableTts:
-                    _dictation.SetEnabled(true);
-                    break;
-
-                case VoiceCommandType.DisableTts:
-                    _dictation.SetEnabled(false);
-                    break;
-
-                case VoiceCommandType.ExitApp:
-                    Close();
-                    break;
             }
         }
     }

@@ -1,4 +1,3 @@
-using System.Drawing;
 using MoodleTestReader.Logic;
 using MoodleTestReader.Speech;
 
