@@ -1,3 +1,4 @@
+using System.Drawing;
 using MoodleTestReader.Logic;
 using MoodleTestReader.Speech;
 
@@ -15,6 +16,9 @@ namespace MoodleTestReader.Services
         private int _pauseAfterQuestionMs = 700;
         private int _pauseBetweenOptionsMs = 250;
         private bool _announceCounts = false;
+
+        private int _questionNumber;
+        private int _totalQuestions;
 
         // НОВЕ: публічний стан і подія зміни
         public bool IsEnabled => _enabled;
@@ -72,9 +76,12 @@ namespace MoodleTestReader.Services
             RepositionToggle();
         }
 
-        public void OnTestStarted()
+        public void OnTestStarted(int totalQuestions)
         {
             _toggle.Visible = false;
+
+            _totalQuestions = totalQuestions;
+            _questionNumber = 1;
 
             _cts.Cancel();
             _cts.Dispose();
@@ -82,7 +89,7 @@ namespace MoodleTestReader.Services
             _ = _tts.CancelAsync();
         }
 
-        public async Task OnQuestionShownAsync(Question q, int totalQuestions, int questionNumber)
+        public async Task OnQuestionShownAsync(Question q)
         {
             if (!_enabled || q == null) return;
 
@@ -96,8 +103,8 @@ namespace MoodleTestReader.Services
                 await _tts.SpeakQuestionAsync(
                     q.question,
                     q.Options,
-                    questionNumber,
-                    totalQuestions,
+                    _questionNumber,
+                    _totalQuestions,
                     _pauseAfterQuestionMs,
                     _pauseBetweenOptionsMs,
                     _announceCounts,
@@ -106,6 +113,13 @@ namespace MoodleTestReader.Services
             }
             catch (OperationCanceledException) { }
             catch { }
+        }
+
+        public void OnNextQuestion()
+        {
+            _questionNumber++;
+            _cts.Cancel();
+            _ = _tts.CancelAsync();
         }
 
         public async Task OnTestFinishedAsync(int score)

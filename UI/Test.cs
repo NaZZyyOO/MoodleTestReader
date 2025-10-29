@@ -8,7 +8,7 @@ namespace MoodleTestReader.UI
 {
     public partial class Test : Form
     {
-        private User? _currentUser;
+        private User _currentUser;
         private TestManager _testManager;
         private readonly Timer _testTimer;
         private int _remainingTime; // в секундах
@@ -17,6 +17,7 @@ namespace MoodleTestReader.UI
 
         // Диктування
         private readonly TestDictationService _dictation;
+        private readonly VoskCommandService _voiceCmd;
 
         // Лічильники питань
         private int _questionNumber;
@@ -28,7 +29,25 @@ namespace MoodleTestReader.UI
             InitializeComponents();
             
             _dictation = new TestDictationService(this);
-            
+
+            // Vosk-команди: постачаємо назви тестів, поточне питання і панель з контролами
+            _voiceCmd = new VoskCommandService(
+                this,
+                OnVoiceCommand,
+                () => _testManager?.GetAvailableTests().Select(t => t.TestName).ToList() ?? new List<string>(),
+                () => _testManager?.GetCurrentQuestionForUser(_currentUser),
+                () => _questionPanel
+            );
+
+            // Команди активні разом з TTS
+            _dictation.EnabledChanged += (_, enabled) =>
+            {
+                if (comboBoxTests.Visible)
+                    _voiceCmd.OnSelectionScreen(enabled);
+                else
+                    _voiceCmd.OnTestStarted(enabled);
+            };
+
             ShowLoginScreen();
 
             _testTimer = new Timer { Interval = 1000 };
@@ -56,6 +75,8 @@ namespace MoodleTestReader.UI
                 LoadAvailableTests();
                 
                 // Показати перемикач TTS; і відповідно увімкнути/вимкнути слухач
+                _voiceCmd.OnSelectionScreen(_dictation.IsEnabled);
+                _voiceCmd.SetActive(_dictation.IsEnabled);
                 _dictation.OnTestSelected();
             }
             else
@@ -110,7 +131,7 @@ namespace MoodleTestReader.UI
             _totalQuestions = currentTest.Questions.Count;
 
             // Сховати прапорець про озвучку і підготувати сервіс
-            _dictation.OnTestStarted();
+            _dictation.OnTestStarted(_totalQuestions);
             
             // Асинхронно показуємо поточне питання для користувача
             await ShowCurrentQuestionAsync();
@@ -140,6 +161,7 @@ namespace MoodleTestReader.UI
 
                     // ОНОВИТИ СТАН КНОПОК ЗА ПОТОЧНИМ ВИБОРОМ
                     TestReview(null, EventArgs.Empty);
+                    _voiceCmd.OnSelectionScreen(_dictation.IsEnabled);
 
                     MessageBox.Show($"Тест завершено. Ваш результат: {score} балів. Залишковий час: {TimeSpan.FromSeconds(_remainingTime):mm\\:ss}");
                     return;
@@ -160,7 +182,10 @@ namespace MoodleTestReader.UI
                 _questionPanel.Controls.Add(buttonNext);
 
                 // Озвучення
-                await _dictation.OnQuestionShownAsync(question, _totalQuestions, _questionNumber);
+                await _dictation.OnQuestionShownAsync(question);
+                
+                // Команди працюють у режимі тесту залежно від TTS
+                _voiceCmd.OnTestStarted(_dictation.IsEnabled);
             }
         }
 
@@ -423,6 +448,206 @@ namespace MoodleTestReader.UI
                 TestReview(null, EventArgs.Empty);
                 
             }
+        }
+        
+        // Обробка голосових команд (у UI-потоці)
+        private async void OnVoiceCommand(VoiceCommand cmd)
+        {
+            switch (cmd.Type)
+            {
+                // Екран вибору
+                case VoiceCommandType.StartTest:
+                    if (buttonStartTest.Visible)
+                        StartTestButton_Click(this, EventArgs.Empty);
+                    break;
+
+                case VoiceCommandType.ReviewTest:
+                    if (buttonReviewTest.Visible)
+                        TestReview_Click(this, EventArgs.Empty);
+                    break;
+
+                case VoiceCommandType.SelectTestByName:
+                    if (!string.IsNullOrWhiteSpace(cmd.Argument))
+                    {
+                        var name = cmd.Argument;
+                        for (int i = 0; i < comboBoxTests.Items.Count; i++)
+                        {
+                            var item = comboBoxTests.Items[i]?.ToString();
+                            if (string.Equals(item, name, StringComparison.OrdinalIgnoreCase))
+                            {
+                                comboBoxTests.SelectedIndex = i;
+                                break;
+                            }
+                        }
+                    }
+                    break;
+
+                case VoiceCommandType.NextTest:
+                    if (comboBoxTests.Items.Count > 0)
+                        comboBoxTests.SelectedIndex = Math.Min(comboBoxTests.SelectedIndex + 1, comboBoxTests.Items.Count - 1);
+                    break;
+
+                case VoiceCommandType.PreviousTest:
+                    if (comboBoxTests.Items.Count > 0)
+                        comboBoxTests.SelectedIndex = Math.Max(comboBoxTests.SelectedIndex - 1, 0);
+                    break;
+
+                case VoiceCommandType.FirstTest:
+                    if (comboBoxTests.Items.Count > 0)
+                        comboBoxTests.SelectedIndex = 0;
+                    break;
+
+                case VoiceCommandType.LastTest:
+                    if (comboBoxTests.Items.Count > 0)
+                        comboBoxTests.SelectedIndex = comboBoxTests.Items.Count - 1;
+                    break;
+
+                case VoiceCommandType.EnableTts:
+                    _dictation.SetEnabled(true);
+                    break;
+
+                case VoiceCommandType.DisableTts:
+                    _dictation.SetEnabled(false);
+                    break;
+
+                case VoiceCommandType.ExitApp:
+                    Close();
+                    break;
+
+                // Під час тесту
+                case VoiceCommandType.NextQuestion:
+                    // Натискаємо “Наступне”
+                    SimulateNextClick();
+                    break;
+
+                case VoiceCommandType.PreviousQuestion:
+                    // Якщо є логіка повернення — виклич тут
+                    break;
+
+                case VoiceCommandType.SelectOptionIndex:
+                    if (cmd.Index.HasValue) SelectSingleOptionByIndex(cmd.Index.Value);
+                    break;
+
+                case VoiceCommandType.ToggleOptionIndex:
+                    if (cmd.Index.HasValue) ToggleMultiOptionByIndex(cmd.Index.Value);
+                    break;
+
+                case VoiceCommandType.ClearSelection:
+                    ClearSelection();
+                    break;
+
+                case VoiceCommandType.SetTrue:
+                    SetTrueFalse(true);
+                    break;
+
+                case VoiceCommandType.SetFalse:
+                    SetTrueFalse(false);
+                    break;
+
+                case VoiceCommandType.ReadQuestion:
+                {
+                    var q = _testManager.GetCurrentQuestionForUser(_currentUser);
+                    if (q != null) await _dictation.OnQuestionShownAsync(q);
+                    break;
+                }
+
+                case VoiceCommandType.ReadOptions:
+                {
+                    var q = _testManager.GetCurrentQuestionForUser(_currentUser);
+                    if (q != null) await _dictation.OnQuestionShownAsync(q);
+                    break;
+                }
+
+                case VoiceCommandType.StopReading:
+                    // Скасовуємо поточну озвучку
+                    _dictation.OnNextQuestion(); // використовує Cancel всередині
+                    break;
+
+                case VoiceCommandType.ReadTime:
+                    MessageBox.Show(labelTime.Text);
+                    break;
+
+                case VoiceCommandType.InputTextAppend:
+                    if (!string.IsNullOrWhiteSpace(cmd.Argument))
+                        AppendToTextBox(cmd.Argument);
+                    break;
+
+                case VoiceCommandType.ClearText:
+                    ClearTextBox();
+                    break;
+            }
+        }
+
+        private void SimulateNextClick()
+        {
+            var btn = _questionPanel.Controls.OfType<Button>().FirstOrDefault(b => b.Text.Contains("Наступ", StringComparison.OrdinalIgnoreCase));
+            if (btn != null)
+                btn.PerformClick();
+        }
+
+        private void SelectSingleOptionByIndex(int index1)
+        {
+            if (index1 <= 0) return;
+            // RadioButton’и для SingleChoice
+            var radios = _questionPanel.Controls.OfType<RadioButton>().ToList();
+            if (radios.Count >= index1)
+            {
+                foreach (var r in radios) r.Checked = false;
+                radios[index1 - 1].Checked = true;
+                return;
+            }
+
+            // True/False — також RadioButton’и (2 шт.)
+            var tf = radios;
+            if (tf.Count == 2 && index1 <= 2)
+            {
+                tf[0].Checked = index1 == 1;
+                tf[1].Checked = index1 == 2;
+            }
+        }
+
+        private void ToggleMultiOptionByIndex(int index1)
+        {
+            if (index1 <= 0) return;
+            var checks = _questionPanel.Controls.OfType<CheckBox>().ToList();
+            if (checks.Count >= index1)
+                checks[index1 - 1].Checked = !checks[index1 - 1].Checked;
+        }
+
+        private void ClearSelection()
+        {
+            foreach (var cb in _questionPanel.Controls.OfType<CheckBox>())
+                cb.Checked = false;
+            foreach (var rb in _questionPanel.Controls.OfType<RadioButton>())
+                rb.Checked = false;
+        }
+
+        private void SetTrueFalse(bool value)
+        {
+            var radios = _questionPanel.Controls.OfType<RadioButton>().ToList();
+            if (radios.Count == 2)
+            {
+                // вважаємо, що перший — True, другий — False (як у твоєму рендері)
+                radios[0].Checked = value;
+                radios[1].Checked = !value;
+            }
+        }
+
+        private void AppendToTextBox(string text)
+        {
+            var tb = _questionPanel.Controls.OfType<TextBox>().FirstOrDefault();
+            if (tb == null) return;
+
+            if (tb.Text.Length > 0 && !char.IsWhiteSpace(tb.Text.Last()))
+                tb.AppendText(" ");
+            tb.AppendText(text);
+        }
+
+        private void ClearTextBox()
+        {
+            var tb = _questionPanel.Controls.OfType<TextBox>().FirstOrDefault();
+            if (tb == null) return;
+            tb.Clear();
         }
     }
 }
