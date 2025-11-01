@@ -23,6 +23,9 @@ namespace MoodleTestReader.Services
 
         public bool IsAvailable => _recognizer.IsAvailable;
 
+        // ДОДАНО: подія для НЕ-командного розпізнаного тексту (щоб показувати в регокнішин-лейблі)
+        public event EventHandler<string>? RecognizedNonCommandText;
+
         public VoskCommandService(
             Form hostForm,
             Action<VoiceCommand> onCommand,
@@ -58,7 +61,6 @@ namespace MoodleTestReader.Services
         public void OnSelectionScreen()
         {
             _inSelectionMode = true;
-            SetActive(true);
         }
 
         public void OnTestStarted(bool activeNow)
@@ -67,9 +69,10 @@ namespace MoodleTestReader.Services
             SetActive(activeNow);
         }
 
-        public void OnTestFinished()
+        public void OnTestFinished(bool activeNow)
         {
             _inSelectionMode = true;
+            SetActive(activeNow);
         }
 
         private void Start()
@@ -97,7 +100,14 @@ namespace MoodleTestReader.Services
                 return;
             }
 
-            // 2) Якщо ми у тесті і питання текстове — усе, що не команда, підставляємо у TextBox
+            // 2) Якщо НЕ команда — повідомляємо UI, щоб показати текст у лейблі
+            try
+            {
+                RecognizedNonCommandText?.Invoke(this, text);
+            }
+            catch { /* ignore */ }
+
+            // 3) Якщо ми у тесті і питання текстове — усе, що не команда, підставляємо у TextBox
             if (!_inSelectionMode)
             {
                 var q = _getCurrentQuestion();

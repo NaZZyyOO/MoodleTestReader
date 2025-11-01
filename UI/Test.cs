@@ -38,21 +38,40 @@ namespace MoodleTestReader.UI
                 () => _testManager?.GetCurrentQuestionForUser(_currentUser),
                 () => _questionPanel
             );
-            
-            // Початковий статус індикатора розпізнавання
+
+            // ПОКАЗАТИ ІНДИКАТОР З ПОЧАТКОВИМ ТЕКСТОМ
             if (recognitionLabel != null)
             {
-                recognitionLabel.Visible = true; // показуємо завжди, як індикатор
+                recognitionLabel.Visible = true;
                 recognitionLabel.Text = "Розпізнавання…";
                 recognitionLabel.ForeColor = Color.DimGray;
             }
+
+            // НОВЕ: показувати НЕ-командний текст користувача у лейблі
+            _voiceCmd.RecognizedNonCommandText += (_, txt) =>
+            {
+                try
+                {
+                    BeginInvoke(new Action(() =>
+                    {
+                        if (recognitionLabel == null) return;
+                        // На екрані вибору — завжди показуємо; під час тесту — тільки якщо TTS увімкнений
+                        var shouldShow = comboBoxTests.Visible || _dictation.IsEnabled;
+                        recognitionLabel.Visible = shouldShow;
+                        if (!shouldShow) return;
+
+                        recognitionLabel.ForeColor = Color.ForestGreen;
+                        recognitionLabel.Text = $"Розпізнано: {txt}";
+                    }));
+                }
+                catch { }
+            };
 
             // Команди активні разом з TTS
             _dictation.EnabledChanged += (_, enabled) =>
             {
                 if (comboBoxTests.Visible)
                 {
-                    // На екрані вибору — вмикати/вимикати згідно поточного підходу
                     _voiceCmd.OnSelectionScreen();
                     if (recognitionLabel != null)
                     {
@@ -63,7 +82,6 @@ namespace MoodleTestReader.UI
                 }
                 else
                 {
-                    // Під час тесту — залежно від TTS
                     _voiceCmd.OnTestStarted(enabled);
                     if (recognitionLabel != null)
                     {
@@ -82,7 +100,6 @@ namespace MoodleTestReader.UI
             comboBoxTests.Click += TestReview;
             comboBoxTests.SelectedIndexChanged += TestReview;
             comboBoxTests.SelectedValueChanged += TestReview;
-            
         }
 
         private void InitializeComponents()
@@ -104,8 +121,7 @@ namespace MoodleTestReader.UI
                 _voiceCmd.OnSelectionScreen();
                 _voiceCmd.SetActive(_dictation.IsEnabled);
                 _dictation.OnTestSelected();
-                
-                // Оновимо індикатор
+
                 if (recognitionLabel != null)
                 {
                     recognitionLabel.Visible = true;
@@ -127,20 +143,17 @@ namespace MoodleTestReader.UI
             {
                 comboBoxTests.Items.Add(test.TestName);
             }
-            
         }
         
         // Один з головних методів: початок тесту
         private async void StartTestButton_Click(object? sender, EventArgs e)
         {
-            // Перевіряємо, чи був обраний який небудь тест
             if (comboBoxTests.SelectedIndex == -1)
             {
                 MessageBox.Show("Оберіть тест.");
                 return;
             }
             
-            // Перевіряємо чи такий тест існує
             var selectedTestName = comboBoxTests.SelectedItem?.ToString();
             var currentTest = _testManager.GetAvailableTests().FirstOrDefault(t => t.TestName == selectedTestName);
             if (currentTest == null)
@@ -149,7 +162,6 @@ namespace MoodleTestReader.UI
                 return;
             }
             
-            // Розпочинаємо сесію тесту: показуємо та ховаємо певні кнопки, запускаємо таймер
             _testManager.StartTestForUser(_currentUser, currentTest.Id);
             _remainingTime = currentTest.TimeLimit * 60;
             labelTime.Text = $"Залишилось: {currentTest.TimeLimit}:00";
@@ -160,14 +172,12 @@ namespace MoodleTestReader.UI
             _startTime = DateTime.Now;
             _testTimer.Start();
             
-            // Перше запитання та загальна кількість питань
             _questionNumber = 1;
             _totalQuestions = currentTest.Questions.Count;
 
-            // Сховати прапорець про озвучку і підготувати сервіс
             _dictation.OnTestStarted(_totalQuestions);
-            
-            // В індикатор
+            _voiceCmd.SetActive(_dictation.IsEnabled);
+
             if (recognitionLabel != null)
             {
                 recognitionLabel.Visible = _dictation.IsEnabled;
@@ -175,7 +185,6 @@ namespace MoodleTestReader.UI
                 recognitionLabel.ForeColor = Color.DimGray;
             }
             
-            // Асинхронно показуємо поточне питання для користувача
             await ShowCurrentQuestionAsync();
         }
 
@@ -183,29 +192,24 @@ namespace MoodleTestReader.UI
         {
             _questionPanel.Controls.Clear();
             
-            // Отримуємо поточне запитання з тестової сесії користувача
             if (_currentUser != null)
             {
                 var question = _testManager.GetCurrentQuestionForUser(_currentUser);
-                // Якщо далі немає запитань - тест закінчується
                 if (question == null)
                 {
                     _testTimer.Stop();
                     _testManager.SaveResultsForUser(_currentUser, out int score, _startTime);
 
-                    // Повернути UI вибору тесту
                     comboBoxTests.Visible = true;
                     buttonStartTest.Visible = true;
                     labelTime.Visible = false;
 
-                    // Озвучити результат і повернути перемикач
                     await _dictation.OnTestFinishedAsync(score);
 
-                    // ОНОВИТИ СТАН КНОПОК ЗА ПОТОЧНИМ ВИБОРОМ
                     TestReview(null, EventArgs.Empty);
                     _voiceCmd.OnSelectionScreen();
-                    
-                    // Індикатор: на екрані вибору завжди показуємо, як індикатор
+                    _voiceCmd.SetActive(_dictation.IsEnabled);
+
                     if (recognitionLabel != null)
                     {
                         recognitionLabel.Visible = true;
@@ -217,7 +221,6 @@ namespace MoodleTestReader.UI
                     return;
                 }
             
-                // Рендер запитання
                 QuestionRenderer.RenderQuestion(
                     _questionPanel,
                     question,
@@ -231,13 +234,11 @@ namespace MoodleTestReader.UI
                 buttonNext.Click += NextButton_Click;
                 _questionPanel.Controls.Add(buttonNext);
 
-                // Озвучення
                 await _dictation.OnQuestionShownAsync(question);
                 
-                // Команди працюють у режимі тесту залежно від TTS
                 _voiceCmd.OnTestStarted(_dictation.IsEnabled);
-                
-                // Оновимо індикатор
+                _voiceCmd.SetActive(_dictation.IsEnabled);
+
                 if (recognitionLabel != null)
                 {
                     recognitionLabel.Visible = _dictation.IsEnabled;
@@ -247,36 +248,26 @@ namespace MoodleTestReader.UI
             }
         }
 
-        private async void NextButton_Click(object sender, EventArgs e)
+        private async void NextButton_Click(object? sender, EventArgs e)
         {
-            // Отримуємо поточне запитання з тестової сесії користувача
             var question = _testManager.GetCurrentQuestionForUser(_currentUser);
-            
-            // Зберігаємо відповідь на запитання
             var answer = ExtractAnswerFromQuestionPanel(question);
             
-            // Якщо варіант/варіанти не обраний(і)/введена
             if (answer == null || (answer is List<string> list && list.Count == 0) || (answer is string s && string.IsNullOrWhiteSpace(s)))
             {
                 MessageBox.Show("Оберіть відповідь.");
                 return;
             }
             
-            // Перевірка запитання, нарахування балів
             _testManager.SubmitAnswerForUser(_currentUser, answer);
-            // Наступне запитання
             _questionNumber++;
             await ShowCurrentQuestionAsync();
         }
         
-        /// <summary>
-        /// Збирає відповідь користувача з елементів _questionPanel згідно з типом питання.
-        /// </summary>
         private object? ExtractAnswerFromQuestionPanel(Question question)
         {
             switch (question)
             {
-                // Вибір декількох відповідей
                 case MultipleChoiceQuestion:
                 {
                     var selected = new List<string>();
@@ -287,7 +278,6 @@ namespace MoodleTestReader.UI
                     }
                     return selected;
                 }
-                // Вписати відповідь
                 case FillInBlankQuestion:
                 {
                     foreach (Control c in _questionPanel.Controls)
@@ -295,7 +285,6 @@ namespace MoodleTestReader.UI
                             return tb.Text;
                     return string.Empty;
                 }
-                // Так/Ні
                 case TrueFalseQuestion:
                 {
                     foreach (Control c in _questionPanel.Controls)
@@ -303,7 +292,6 @@ namespace MoodleTestReader.UI
                             return bool.Parse(rb.Text);
                     return null;
                 }
-                // Звичайне запитання, одна відповідь
                 default:
                 {
                     foreach (Control c in _questionPanel.Controls)
@@ -314,10 +302,8 @@ namespace MoodleTestReader.UI
             }
         }
         
-        // Певні дії з інтерфейсом коли була дія з вибором тесту
         private void TestReview(object? sender, EventArgs e)
         {
-            // Перевірка чи обраний тест, якщо так, шукаємо тест з такою назвою
             if (comboBoxTests.SelectedItem == null) return;
             var selectedTestName = comboBoxTests.SelectedItem.ToString();
             var currentTest = _testManager.GetAvailableTests().FirstOrDefault(t => t.TestName == selectedTestName);
@@ -326,34 +312,34 @@ namespace MoodleTestReader.UI
             {
                 if (_currentUser != null && _currentUser.TestResults.Any(result => result.TestId == currentTest.Id))
                 {
-                    // Є результати — показуємо Огляд, ховаємо Старт
                     buttonStartTest.Visible = false;
                     buttonReviewTest.Visible = true;
                 }
                 else
                 {
-                    // Нема результатів — показуємо Старт, ховаємо Огляд
                     buttonStartTest.Visible = true;
                     buttonReviewTest.Visible = false;
                 }
 
-                // Показуємо перемикач диктування на екрані вибору
                 _dictation.OnTestSelected();
+
+                if (recognitionLabel != null)
+                {
+                    recognitionLabel.Visible = true;
+                    recognitionLabel.Text = "Розпізнавання…";
+                    recognitionLabel.ForeColor = Color.DimGray;
+                }
             }
         }
         
-        // Один з головних методів: огляд тесту
         private void TestReview_Click(object? sender, EventArgs e)
         {
-            
-            // Перевіряємо, чи був обраний який небудь тест
             if (comboBoxTests.SelectedIndex == -1)
             {
                 MessageBox.Show("Оберіть тест.");
                 return;
             }
             
-            // Перевіряємо чи такий тест існує
             var selectedTestName = comboBoxTests.SelectedItem?.ToString();
             var currentTest = _testManager.GetAvailableTests().FirstOrDefault(t => t.TestName == selectedTestName);
             if (currentTest == null)
@@ -362,7 +348,6 @@ namespace MoodleTestReader.UI
                 return;
             }
             
-            // Шукаємо результати тесту цього користувача
             var result = _currentUser?.TestResults.Where(r => r.TestId == currentTest.Id)
                 .OrderByDescending(r => r.EndTime)
                 .FirstOrDefault();
@@ -380,7 +365,6 @@ namespace MoodleTestReader.UI
 
             _questionPanel.Controls.Clear();
 
-            // Прокручуваний контейнер де відображаються всі запитання 
             var reviewFlow = new FlowLayoutPanel
             {
                 Dock = DockStyle.Fill,
@@ -406,7 +390,6 @@ namespace MoodleTestReader.UI
             int index = 1;
             foreach (var q in currentTest.Questions)
             {
-                // Картка питання
                 var card = new Panel
                 {
                     Margin = new Padding(0, 0, 0, 10),
@@ -414,7 +397,6 @@ namespace MoodleTestReader.UI
                     Width = reviewFlow.ClientSize.Width - reviewFlow.Padding.Horizontal - 10
                 };
 
-                // Контент питання (заголовок + варіанти рендерить рендерер)
                 var contentPanel = new Panel
                 {
                     Location = new Point(0, 0),
@@ -424,7 +406,6 @@ namespace MoodleTestReader.UI
                 result.Details.TryGetValue(q.Id, out var aws);
                 var userAnswer = aws?.Answer;
 
-                // ВАЖЛИВО: заголовок малюємо ТУТ, а не окремим Label’ом вище, щоб уникнути дублювання
                 QuestionRenderer.RenderQuestion(
                     contentPanel,
                     q,
@@ -434,13 +415,11 @@ namespace MoodleTestReader.UI
                     headerPrefix: $"{index}. "
                 );
 
-                // Висота за найнижчим контролом
                 var contentBottom = contentPanel.Controls.Cast<Control>().Select(c => c.Bottom).DefaultIfEmpty(0).Max();
                 contentPanel.Height = contentBottom;
 
                 card.Controls.Add(contentPanel);
 
-                // Бали за питання
                 var pts = new Label
                 {
                     Text = $"Бали: {(aws?.Points ?? 0)} з {q.Points}",
@@ -449,14 +428,12 @@ namespace MoodleTestReader.UI
                 };
                 card.Controls.Add(pts);
 
-                // Підіб’ємо висоту картки
                 card.Height = pts.Bottom;
 
                 reviewFlow.Controls.Add(card);
                 index++;
             }
 
-            // Кнопка виходу з огляду
             var btnClose = new Button
             {
                 Text = "Закрити огляд",
@@ -470,8 +447,7 @@ namespace MoodleTestReader.UI
                 comboBoxTests.Visible = true;
                 TestReview(null, EventArgs.Empty);
                 labelTime.Visible = false;
-                
-                // Повернути індикатор
+
                 if (recognitionLabel != null)
                 {
                     recognitionLabel.Visible = true;
@@ -482,7 +458,6 @@ namespace MoodleTestReader.UI
             reviewFlow.Controls.Add(btnClose);
         }
         
-        // Метод для відображення змін в таймері
         private void TestTimer_Tick(object? sender, EventArgs e)
         {
             if (_remainingTime > 0)
@@ -500,7 +475,6 @@ namespace MoodleTestReader.UI
                 _testTimer.Stop();
                 _testManager.SaveResultsForUser(_currentUser, out int score, _startTime);
 
-                // Озвучення результату і повернення перемикача
                 _ = _dictation.OnTestFinishedAsync(score);
 
                 MessageBox.Show($"Час вичерпано. Тест завершено. Ваш результат: {score} балів.");
@@ -510,24 +484,20 @@ namespace MoodleTestReader.UI
                 comboBoxTests.Visible = true;
                 labelTime.Visible = false;
 
-                // ОНОВИТИ СТАН КНОПОК ЗА ПОТОЧНИМ ВИБОРОМ
                 TestReview(null, EventArgs.Empty);
-                
-                // Індикатор
+
                 if (recognitionLabel != null)
                 {
                     recognitionLabel.Visible = true;
                     recognitionLabel.Text = "Розпізнавання…";
                     recognitionLabel.ForeColor = Color.DimGray;
                 }
-                
             }
         }
         
-        // Обробка голосових команд (у UI-потоці)
+        // Обробка команд (як було), додатково цей метод уже показує у лейблі тексти для команд/диктації
         private async void OnVoiceCommand(VoiceCommand cmd)
         {
-            // Оновимо напис для користувача з коротким описом того, що розпізнано
             void ShowCmd(string text)
             {
                 if (recognitionLabel != null)
@@ -540,7 +510,6 @@ namespace MoodleTestReader.UI
 
             switch (cmd.Type)
             {
-                // Екран вибору
                 case VoiceCommandType.StartTest:
                     ShowCmd("команда — Почати тест");
                     if (buttonStartTest.Visible)
@@ -609,16 +578,13 @@ namespace MoodleTestReader.UI
                     Close();
                     break;
 
-                // Під час тесту
                 case VoiceCommandType.NextQuestion:
                     ShowCmd("команда — Далі");
-                    // Натискаємо “Наступне”
                     SimulateNextClick();
                     break;
 
                 case VoiceCommandType.PreviousQuestion:
                     ShowCmd("команда — Попереднє питання");
-                    // Якщо є логіка повернення — додай виклик тут
                     break;
 
                 case VoiceCommandType.SelectOptionIndex:
@@ -664,7 +630,7 @@ namespace MoodleTestReader.UI
 
                 case VoiceCommandType.StopReading:
                     ShowCmd("команда — Зупинити озвучення");
-                    _dictation.OnNextQuestion(); // використовує Cancel всередині
+                    _dictation.OnNextQuestion();
                     break;
 
                 case VoiceCommandType.ReadTime:
@@ -672,9 +638,9 @@ namespace MoodleTestReader.UI
                     break;
 
                 case VoiceCommandType.InputTextAppend:
-                    // Для текстових відповідей показуємо сам розпізнаний текст
                     if (!string.IsNullOrWhiteSpace(cmd.Argument))
                     {
+                        // Показати сам розпізнаний текст (не команда) і додати в поле
                         if (recognitionLabel != null)
                         {
                             recognitionLabel.Visible = true;
@@ -702,7 +668,6 @@ namespace MoodleTestReader.UI
         private void SelectSingleOptionByIndex(int index1)
         {
             if (index1 <= 0) return;
-            // RadioButton’и для SingleChoice
             var radios = _questionPanel.Controls.OfType<RadioButton>().ToList();
             if (radios.Count >= index1)
             {
@@ -711,7 +676,6 @@ namespace MoodleTestReader.UI
                 return;
             }
 
-            // True/False — також RadioButton’и (2 шт.)
             var tf = radios;
             if (tf.Count == 2 && index1 <= 2)
             {
@@ -741,7 +705,6 @@ namespace MoodleTestReader.UI
             var radios = _questionPanel.Controls.OfType<RadioButton>().ToList();
             if (radios.Count == 2)
             {
-                // вважаємо, що перший — True, другий — False (як у твоєму рендері)
                 radios[0].Checked = value;
                 radios[1].Checked = !value;
             }
