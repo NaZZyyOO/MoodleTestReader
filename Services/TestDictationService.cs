@@ -1,4 +1,3 @@
-using System.Drawing;
 using MoodleTestReader.Logic;
 using MoodleTestReader.Speech;
 
@@ -13,14 +12,13 @@ namespace MoodleTestReader.Services
         private bool _enabled;
 
         // Налаштування
-        private int _pauseAfterQuestionMs = 700;
-        private int _pauseBetweenOptionsMs = 250;
-        private bool _announceCounts = false;
+        private const int PauseAfterQuestionMs = 700;
+        private const int PauseBetweenOptionsMs = 250;
+        private const bool AnnounceCounts = false;
 
         private int _questionNumber;
         private int _totalQuestions;
-
-        // НОВЕ: публічний стан і подія зміни
+        
         public bool IsEnabled => _enabled;
         public event EventHandler<bool>? EnabledChanged;
 
@@ -105,9 +103,9 @@ namespace MoodleTestReader.Services
                     q.Options,
                     _questionNumber,
                     _totalQuestions,
-                    _pauseAfterQuestionMs,
-                    _pauseBetweenOptionsMs,
-                    _announceCounts,
+                    PauseAfterQuestionMs,
+                    PauseBetweenOptionsMs,
+                    AnnounceCounts,
                     _cts.Token
                 );
             }

@@ -38,14 +38,40 @@ namespace MoodleTestReader.UI
                 () => _testManager?.GetCurrentQuestionForUser(_currentUser),
                 () => _questionPanel
             );
+            
+            // Початковий статус індикатора розпізнавання
+            if (recognitionLabel != null)
+            {
+                recognitionLabel.Visible = true; // показуємо завжди, як індикатор
+                recognitionLabel.Text = "Розпізнавання…";
+                recognitionLabel.ForeColor = Color.DimGray;
+            }
 
             // Команди активні разом з TTS
             _dictation.EnabledChanged += (_, enabled) =>
             {
                 if (comboBoxTests.Visible)
-                    _voiceCmd.OnSelectionScreen(enabled);
+                {
+                    // На екрані вибору — вмикати/вимикати згідно поточного підходу
+                    _voiceCmd.OnSelectionScreen();
+                    if (recognitionLabel != null)
+                    {
+                        recognitionLabel.Visible = true;
+                        recognitionLabel.Text = "Розпізнавання…";
+                        recognitionLabel.ForeColor = Color.DimGray;
+                    }
+                }
                 else
+                {
+                    // Під час тесту — залежно від TTS
                     _voiceCmd.OnTestStarted(enabled);
+                    if (recognitionLabel != null)
+                    {
+                        recognitionLabel.Visible = enabled;
+                        recognitionLabel.Text = "Розпізнавання…";
+                        recognitionLabel.ForeColor = Color.DimGray;
+                    }
+                }
             };
 
             ShowLoginScreen();
@@ -75,9 +101,17 @@ namespace MoodleTestReader.UI
                 LoadAvailableTests();
                 
                 // Показати перемикач TTS; і відповідно увімкнути/вимкнути слухач
-                _voiceCmd.OnSelectionScreen(_dictation.IsEnabled);
+                _voiceCmd.OnSelectionScreen();
                 _voiceCmd.SetActive(_dictation.IsEnabled);
                 _dictation.OnTestSelected();
+                
+                // Оновимо індикатор
+                if (recognitionLabel != null)
+                {
+                    recognitionLabel.Visible = true;
+                    recognitionLabel.Text = "Розпізнавання…";
+                    recognitionLabel.ForeColor = Color.DimGray;
+                }
             }
             else
             {
@@ -133,6 +167,14 @@ namespace MoodleTestReader.UI
             // Сховати прапорець про озвучку і підготувати сервіс
             _dictation.OnTestStarted(_totalQuestions);
             
+            // В індикатор
+            if (recognitionLabel != null)
+            {
+                recognitionLabel.Visible = _dictation.IsEnabled;
+                recognitionLabel.Text = "Розпізнавання…";
+                recognitionLabel.ForeColor = Color.DimGray;
+            }
+            
             // Асинхронно показуємо поточне питання для користувача
             await ShowCurrentQuestionAsync();
         }
@@ -161,7 +203,15 @@ namespace MoodleTestReader.UI
 
                     // ОНОВИТИ СТАН КНОПОК ЗА ПОТОЧНИМ ВИБОРОМ
                     TestReview(null, EventArgs.Empty);
-                    _voiceCmd.OnSelectionScreen(_dictation.IsEnabled);
+                    _voiceCmd.OnSelectionScreen();
+                    
+                    // Індикатор: на екрані вибору завжди показуємо, як індикатор
+                    if (recognitionLabel != null)
+                    {
+                        recognitionLabel.Visible = true;
+                        recognitionLabel.Text = "Розпізнавання…";
+                        recognitionLabel.ForeColor = Color.DimGray;
+                    }
 
                     MessageBox.Show($"Тест завершено. Ваш результат: {score} балів. Залишковий час: {TimeSpan.FromSeconds(_remainingTime):mm\\:ss}");
                     return;
@@ -186,6 +236,14 @@ namespace MoodleTestReader.UI
                 
                 // Команди працюють у режимі тесту залежно від TTS
                 _voiceCmd.OnTestStarted(_dictation.IsEnabled);
+                
+                // Оновимо індикатор
+                if (recognitionLabel != null)
+                {
+                    recognitionLabel.Visible = _dictation.IsEnabled;
+                    recognitionLabel.Text = "Розпізнавання…";
+                    recognitionLabel.ForeColor = Color.DimGray;
+                }
             }
         }
 
@@ -412,6 +470,14 @@ namespace MoodleTestReader.UI
                 comboBoxTests.Visible = true;
                 TestReview(null, EventArgs.Empty);
                 labelTime.Visible = false;
+                
+                // Повернути індикатор
+                if (recognitionLabel != null)
+                {
+                    recognitionLabel.Visible = true;
+                    recognitionLabel.Text = "Розпізнавання…";
+                    recognitionLabel.ForeColor = Color.DimGray;
+                }
             };
             reviewFlow.Controls.Add(btnClose);
         }
@@ -447,26 +513,48 @@ namespace MoodleTestReader.UI
                 // ОНОВИТИ СТАН КНОПОК ЗА ПОТОЧНИМ ВИБОРОМ
                 TestReview(null, EventArgs.Empty);
                 
+                // Індикатор
+                if (recognitionLabel != null)
+                {
+                    recognitionLabel.Visible = true;
+                    recognitionLabel.Text = "Розпізнавання…";
+                    recognitionLabel.ForeColor = Color.DimGray;
+                }
+                
             }
         }
         
         // Обробка голосових команд (у UI-потоці)
         private async void OnVoiceCommand(VoiceCommand cmd)
         {
+            // Оновимо напис для користувача з коротким описом того, що розпізнано
+            void ShowCmd(string text)
+            {
+                if (recognitionLabel != null)
+                {
+                    recognitionLabel.Visible = true;
+                    recognitionLabel.ForeColor = Color.ForestGreen;
+                    recognitionLabel.Text = $"Розпізнано: {text}";
+                }
+            }
+
             switch (cmd.Type)
             {
                 // Екран вибору
                 case VoiceCommandType.StartTest:
+                    ShowCmd("команда — Почати тест");
                     if (buttonStartTest.Visible)
                         StartTestButton_Click(this, EventArgs.Empty);
                     break;
 
                 case VoiceCommandType.ReviewTest:
+                    ShowCmd("команда — Огляд тесту");
                     if (buttonReviewTest.Visible)
                         TestReview_Click(this, EventArgs.Empty);
                     break;
 
                 case VoiceCommandType.SelectTestByName:
+                    ShowCmd($"вибрати тест — {cmd.Argument}");
                     if (!string.IsNullOrWhiteSpace(cmd.Argument))
                     {
                         var name = cmd.Argument;
@@ -483,69 +571,84 @@ namespace MoodleTestReader.UI
                     break;
 
                 case VoiceCommandType.NextTest:
+                    ShowCmd("команда — Наступний тест");
                     if (comboBoxTests.Items.Count > 0)
                         comboBoxTests.SelectedIndex = Math.Min(comboBoxTests.SelectedIndex + 1, comboBoxTests.Items.Count - 1);
                     break;
 
                 case VoiceCommandType.PreviousTest:
+                    ShowCmd("команда — Попередній тест");
                     if (comboBoxTests.Items.Count > 0)
                         comboBoxTests.SelectedIndex = Math.Max(comboBoxTests.SelectedIndex - 1, 0);
                     break;
 
                 case VoiceCommandType.FirstTest:
+                    ShowCmd("команда — Перший тест");
                     if (comboBoxTests.Items.Count > 0)
                         comboBoxTests.SelectedIndex = 0;
                     break;
 
                 case VoiceCommandType.LastTest:
+                    ShowCmd("команда — Останній тест");
                     if (comboBoxTests.Items.Count > 0)
                         comboBoxTests.SelectedIndex = comboBoxTests.Items.Count - 1;
                     break;
 
                 case VoiceCommandType.EnableTts:
+                    ShowCmd("команда — Увімкнути озвучення");
                     _dictation.SetEnabled(true);
                     break;
 
                 case VoiceCommandType.DisableTts:
+                    ShowCmd("команда — Вимкнути озвучення");
                     _dictation.SetEnabled(false);
                     break;
 
                 case VoiceCommandType.ExitApp:
+                    ShowCmd("команда — Вийти");
                     Close();
                     break;
 
                 // Під час тесту
                 case VoiceCommandType.NextQuestion:
+                    ShowCmd("команда — Далі");
                     // Натискаємо “Наступне”
                     SimulateNextClick();
                     break;
 
                 case VoiceCommandType.PreviousQuestion:
-                    // Якщо є логіка повернення — виклич тут
+                    ShowCmd("команда — Попереднє питання");
+                    // Якщо є логіка повернення — додай виклик тут
                     break;
 
                 case VoiceCommandType.SelectOptionIndex:
+                    ShowCmd($"вибрати варіант — {cmd.Index}");
                     if (cmd.Index.HasValue) SelectSingleOptionByIndex(cmd.Index.Value);
                     break;
 
                 case VoiceCommandType.ToggleOptionIndex:
+                    ShowCmd($"перемкнути варіант — {cmd.Index}");
                     if (cmd.Index.HasValue) ToggleMultiOptionByIndex(cmd.Index.Value);
                     break;
 
                 case VoiceCommandType.ClearSelection:
+                    ShowCmd("команда — Очистити вибір");
                     ClearSelection();
                     break;
 
                 case VoiceCommandType.SetTrue:
+                    ShowCmd("команда — Істина");
                     SetTrueFalse(true);
                     break;
 
                 case VoiceCommandType.SetFalse:
+                    ShowCmd("команда — Хиба");
                     SetTrueFalse(false);
                     break;
 
                 case VoiceCommandType.ReadQuestion:
                 {
+                    ShowCmd("команда — Прочитати питання");
                     var q = _testManager.GetCurrentQuestionForUser(_currentUser);
                     if (q != null) await _dictation.OnQuestionShownAsync(q);
                     break;
@@ -553,26 +656,37 @@ namespace MoodleTestReader.UI
 
                 case VoiceCommandType.ReadOptions:
                 {
+                    ShowCmd("команда — Прочитати варіанти");
                     var q = _testManager.GetCurrentQuestionForUser(_currentUser);
                     if (q != null) await _dictation.OnQuestionShownAsync(q);
                     break;
                 }
 
                 case VoiceCommandType.StopReading:
-                    // Скасовуємо поточну озвучку
+                    ShowCmd("команда — Зупинити озвучення");
                     _dictation.OnNextQuestion(); // використовує Cancel всередині
                     break;
 
                 case VoiceCommandType.ReadTime:
-                    MessageBox.Show(labelTime.Text);
+                    ShowCmd($"команда — Час ({labelTime.Text})");
                     break;
 
                 case VoiceCommandType.InputTextAppend:
+                    // Для текстових відповідей показуємо сам розпізнаний текст
                     if (!string.IsNullOrWhiteSpace(cmd.Argument))
+                    {
+                        if (recognitionLabel != null)
+                        {
+                            recognitionLabel.Visible = true;
+                            recognitionLabel.ForeColor = Color.ForestGreen;
+                            recognitionLabel.Text = $"Розпізнано: {cmd.Argument}";
+                        }
                         AppendToTextBox(cmd.Argument);
+                    }
                     break;
 
                 case VoiceCommandType.ClearText:
+                    ShowCmd("команда — Очистити поле");
                     ClearTextBox();
                     break;
             }

@@ -14,7 +14,6 @@ namespace MoodleTestReader.Logic
             {
                 return false;
             }
-            Console.WriteLine("Порівнюємо обрану відповідь " + userAnswer + "з відповіддю користувача " + CorrectAnswer);
             return userAnswer.Trim().Equals(CorrectAnswer, StringComparison.OrdinalIgnoreCase);
         }
     }

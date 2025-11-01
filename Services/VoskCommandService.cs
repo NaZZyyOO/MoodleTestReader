@@ -55,10 +55,10 @@ namespace MoodleTestReader.Services
             else Stop();
         }
 
-        public void OnSelectionScreen(bool activeNow)
+        public void OnSelectionScreen()
         {
             _inSelectionMode = true;
-            SetActive(activeNow);
+            SetActive(true);
         }
 
         public void OnTestStarted(bool activeNow)
@@ -67,10 +67,9 @@ namespace MoodleTestReader.Services
             SetActive(activeNow);
         }
 
-        public void OnTestFinished(bool activeNow)
+        public void OnTestFinished()
         {
             _inSelectionMode = true;
-            SetActive(activeNow);
         }
 
         private void Start()

@@ -19,6 +19,7 @@ namespace MoodleTestReader.UI
             this.buttonStartTest = new System.Windows.Forms.Button();
             this.buttonReviewTest = new System.Windows.Forms.Button();
             this.labelTime = new System.Windows.Forms.Label();
+            this.recognitionLabel = new System.Windows.Forms.Label();
             this.SuspendLayout();
 
             // comboBoxTests
@@ -47,6 +48,13 @@ namespace MoodleTestReader.UI
             this.buttonReviewTest.Visible = false;
             this.buttonReviewTest.Click += new System.EventHandler(this.TestReview_Click);
             
+            // recognitionLabel
+            this.recognitionLabel.Location = new System.Drawing.Point(400, 40);
+            this.recognitionLabel.Name = "recognitionLabel";
+            this.recognitionLabel.AutoSize = true;
+            this.recognitionLabel.ForeColor = Color.DimGray;
+            this.recognitionLabel.Text = "Розпізнавання…";
+            this.recognitionLabel.Visible = true;
 
             // labelTime
             this.labelTime.Location = new System.Drawing.Point(400, 10);
@@ -64,6 +72,7 @@ namespace MoodleTestReader.UI
             this.Controls.Add(this.buttonStartTest);
             this.Controls.Add(this.labelTime);
             this.Controls.Add(this.buttonReviewTest);
+            this.Controls.Add(this.recognitionLabel);
             this.Name = "Test";
             this.Text = "Тестовий модуль";
             this.ResumeLayout(false);
@@ -74,5 +83,6 @@ namespace MoodleTestReader.UI
         private System.Windows.Forms.Button buttonStartTest;
         private System.Windows.Forms.Button buttonReviewTest;
         private System.Windows.Forms.Label labelTime;
+        private System.Windows.Forms.Label recognitionLabel;
     }
 }
