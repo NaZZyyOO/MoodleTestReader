@@ -95,6 +95,11 @@ namespace MoodleTestReader.UI
             comboBoxTests.SelectedIndexChanged += TestReview;
             comboBoxTests.SelectedValueChanged += TestReview;
         }
+        
+        private bool IsAdmin() =>
+            _currentUser != null &&
+            string.Equals(_currentUser.Username, "admin", StringComparison.OrdinalIgnoreCase);
+
 
         private void ShowLoginScreen()
         {
@@ -115,10 +120,22 @@ namespace MoodleTestReader.UI
                     recognitionLabel.Text = "Розпізнавання…";
                     recognitionLabel.ForeColor = Color.DimGray;
                 }
+                
+                // Показати кнопку управління ролями лише для адміна
+                buttonManageRoles.Visible = IsAdmin();
             }
             else
             {
                 Close();
+            }
+        }
+        
+        private void ButtonManageRoles_Click(object? sender, EventArgs e)
+        {
+            using (var dlg = new AdminRolesForm())
+            {
+                dlg.StartPosition = FormStartPosition.CenterParent;
+                dlg.ShowDialog(this);
             }
         }
 

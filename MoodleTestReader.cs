@@ -1,5 +1,6 @@
 using System.Text;
 using MoodleTestReader.Data;
+using MoodleTestReader.Logic;
 using MoodleTestReader.UI;
 
 namespace MoodleTestReader;
@@ -40,11 +41,10 @@ static class MoodleTestReader
             },
             10
             );
-        tests.Add(test);*/
-        var dataLoader = new DataLoader();
-        dataLoader.SaveTests(tests);
+        tests.Add(test);
+        DataLoader.SaveTests(tests);*/
         Console.WriteLine("Тести збережено в БД.");
-        dataLoader.InitializeDatabase();
+        DataLoader.InitializeDatabase();
         ApplicationConfiguration.Initialize();
         Application.Run(new Test());
     }

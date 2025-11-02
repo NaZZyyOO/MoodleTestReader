@@ -9,16 +9,11 @@ using JsonSerializer = System.Text.Json.JsonSerializer;
 
 namespace MoodleTestReader.Data
 {
-    public class DataLoader
+    public static class DataLoader
     {
         private const string ConnectionString = "Server=localhost;Database=MoodleTestReader;Uid=root;Pwd=XP18ruthenian;Port=3306";
 
-        public DataLoader()
-        {
-            InitializeDatabase();
-        }
-
-        public void InitializeDatabase()
+        public static void InitializeDatabase()
         {
             using (var connection = new MySqlConnection(ConnectionString))
             {
@@ -27,7 +22,8 @@ namespace MoodleTestReader.Data
                     CREATE TABLE IF NOT EXISTS Users (
                         Id INT AUTO_INCREMENT PRIMARY KEY,
                         Username VARCHAR(50) NOT NULL UNIQUE,
-                        Password VARCHAR(64) NOT NULL
+                        Password VARCHAR(64) NOT NULL,
+                        IsProfessor INT NOT NULL DEFAULT 0
                     )";
                 const string createTestsTable = @"
                     CREATE TABLE IF NOT EXISTS Tests (
@@ -82,7 +78,7 @@ namespace MoodleTestReader.Data
             }
         }
 
-        public void CreateUser(string username, string password)
+        public static void CreateUser(string username, string password)
         {
             using (var connection = new MySqlConnection(ConnectionString))
             {
@@ -96,13 +92,35 @@ namespace MoodleTestReader.Data
                 }
             }
         }
+        
+        private static void EnsureIsProfessorColumn(MySqlConnection connection)
+        {
+            const string existsSql = @"
+            SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE()
+                AND TABLE_NAME = 'Users'
+                AND COLUMN_NAME = 'IsProfessor'";
+            using var cmd = new MySqlCommand(existsSql, connection);
+            var exists = Convert.ToInt32(cmd.ExecuteScalar()) > 0;
+            if (!exists)
+            {
+                const string alterSql = "ALTER TABLE Users ADD COLUMN IsProfessor TINYINT(1) NOT NULL DEFAULT 0";
+                using var alter = new MySqlCommand(alterSql, connection);
+                alter.ExecuteNonQuery();
+            }
+        }
 
-        public User AuthenticateUser(string username, string password)
+        public static User? AuthenticateUser(string username, string password)
         {
             using (var connection = new MySqlConnection(ConnectionString))
             {
                 connection.Open();
-                const string query = "SELECT Id, Username, Password FROM Users WHERE Username = @username";
+
+                // Гарантуємо, що колонка існує (для баз, створених до додавання поля)
+                EnsureIsProfessorColumn(connection);
+
+                const string query = @"
+                    SELECT Id, Username, Password, COALESCE(IsProfessor, 0) AS IsProfessor FROM Users
+                        WHERE Username = @username";
                 using (var command = new MySqlCommand(query, connection))
                 {
                     command.Parameters.AddWithValue("@username", username);
@@ -110,14 +128,20 @@ namespace MoodleTestReader.Data
                     {
                         if (reader.Read())
                         {
-                            var storedHash = reader["Password"].ToString();
+                            var storedHash = reader["Password"]?.ToString();
                             if (storedHash == HashPassword(password))
                             {
-                                return new User
-                                (
+                                var isProfessorValue = reader.IsDBNull(reader.GetOrdinal("IsProfessor"))
+                                    ? 0
+                                    : Convert.ToInt32(reader["IsProfessor"]);
+                                var isProfessor = isProfessorValue == 1;
+
+                                // Якщо в тебе конструктор з прапорцем:
+                                return new User(
                                     Convert.ToInt32(reader["Id"]),
-                                    reader["Username"].ToString(),
-                                    storedHash
+                                    reader["Username"]?.ToString() ?? "",
+                                    storedHash!,
+                                    isProfessor
                                 );
                             }
                         }
@@ -127,7 +151,7 @@ namespace MoodleTestReader.Data
             return null;
         }
 
-        public bool UserExists(string username)
+        public static bool UserExists(string username)
         {
             using (var connection = new MySqlConnection(ConnectionString))
             {
@@ -141,7 +165,7 @@ namespace MoodleTestReader.Data
             }
         }
 
-        public List<Test> GetAvailableTests()
+        public static List<Test> GetAvailableTests()
         {
             var tests = new List<Test>();
             using (var connection = new MySqlConnection(ConnectionString))
@@ -240,7 +264,7 @@ namespace MoodleTestReader.Data
             return tests;
         }
 
-        public void SaveTests(List<Test> tests)
+        public static void SaveTests(List<Test> tests)
         {
             using (var connection = new MySqlConnection(ConnectionString))
             {
@@ -335,7 +359,7 @@ namespace MoodleTestReader.Data
             }
         }
 
-        public void SaveTestResult(TestResult result)
+        public static void SaveTestResult(TestResult result)
         {
             using (var connection = new MySqlConnection(ConnectionString))
             {
@@ -385,7 +409,7 @@ namespace MoodleTestReader.Data
             }
         }
 
-        public List<TestResult> GetUserTestResults(int userId)
+        public static List<TestResult> GetUserTestResults(int userId)
         {
             var testResults = new List<TestResult>();
 
@@ -454,9 +478,87 @@ namespace MoodleTestReader.Data
 
             return testResults;
         }
+        
+        public static List<User> GetAllUsers()
+        {
+            var users = new List<User>();
 
+            using (var connection = new MySqlConnection(ConnectionString))
+            {
+                connection.Open();
 
-        private string HashPassword(string password)
+                // Гарантуємо наявність колонки ролі (0 = студент, 1 = викладач)
+                try
+                {
+                    using var ensureCol = new MySqlCommand(
+                        "ALTER TABLE Users ADD COLUMN IF NOT EXISTS IsProfessor TINYINT(1) NOT NULL DEFAULT 0",
+                        connection
+                    );
+                    ensureCol.ExecuteNonQuery();
+                }
+                catch
+                {
+                    // Ігноруємо, якщо ALTER недоступний/непотрібний
+                }
+
+                const string sql = @"SELECT Id, Username, Password,
+                             COALESCE(IsProfessor, 0) AS IsProfessor
+                             FROM Users";
+
+                using (var command = new MySqlCommand(sql, connection))
+                using (var reader = command.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        var id = Convert.ToInt32(reader["Id"]);
+                        var username = reader["Username"]?.ToString() ?? string.Empty;
+                        var passwordHash = reader["Password"]?.ToString() ?? string.Empty;
+                        var isProf = Convert.ToInt32(reader["IsProfessor"]) != 0;
+
+                        var user = new User(id, username, passwordHash)
+                        {
+                            IsProfessor = isProf,
+                            ProfessorsTests = new List<int>(),
+                            TestResults = new List<TestResult>()
+                        };
+
+                        users.Add(user);
+                    }
+                }
+            }
+
+            return users;
+        }
+        
+        public static void UpdateUserProfessorFlag(int userId, bool isProfessor)
+        {
+            using (var connection = new MySqlConnection(ConnectionString))
+            {
+                connection.Open();
+
+                // Гарантуємо наявність колонки ролі
+                try
+                {
+                    using var ensureCol = new MySqlCommand(
+                        "ALTER TABLE Users ADD COLUMN IF NOT EXISTS IsProfessor TINYINT(1) NOT NULL DEFAULT 0",
+                        connection
+                    );
+                    ensureCol.ExecuteNonQuery();
+                }
+                catch
+                {
+                    // Ігноруємо помилку, якщо ALTER не підтримується або колонка вже існує
+                }
+
+                const string sql = "UPDATE Users SET IsProfessor = @isProfessor WHERE Id = @userId";
+                using var cmd = new MySqlCommand(sql, connection);
+                cmd.Parameters.AddWithValue("@isProfessor", isProfessor ? 1 : 0);
+                cmd.Parameters.AddWithValue("@userId", userId);
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        private static string HashPassword(string password)
         {
             using (SHA256 sha256 = SHA256.Create())
             {

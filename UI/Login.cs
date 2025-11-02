@@ -24,12 +24,11 @@ namespace MoodleTestReader.UI
                 MessageBox.Show("Заповніть усі поля.");
                 return;
             }
-
-            var dataLoader = new DataLoader();
-            _user = dataLoader.AuthenticateUser(username, password);
+            
+            _user = DataLoader.AuthenticateUser(username, password);
             if (_user != null)
             {   
-                _user.TestResults = dataLoader.GetUserTestResults(_user.Id);
+                _user.TestResults = DataLoader.GetUserTestResults(_user.Id);
                 
                 DialogResult = DialogResult.OK;
                 Close();

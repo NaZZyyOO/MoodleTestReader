@@ -6,13 +6,11 @@ namespace MoodleTestReader.Logic
 {
     public class TestManager
     {
-        private readonly DataLoader _dataLoader;
         private readonly Dictionary<int, Test> _testTemplates; // Шаблони тестів: Id -> Test з усіма запитаннями
         private readonly Dictionary<int, TestSession> _userSessions; // Сеанси користувачів: User -> TestSession
 
         public TestManager()
         {
-            _dataLoader = new DataLoader();
             _testTemplates = new Dictionary<int, Test>();
             _userSessions = new Dictionary<int, TestSession>();
             LoadTestTemplates();
@@ -20,7 +18,7 @@ namespace MoodleTestReader.Logic
 
         private void LoadTestTemplates()
         {
-            var tests = _dataLoader.GetAvailableTests();
+            var tests = DataLoader.GetAvailableTests();
             foreach (var test in tests)
             {
                 _testTemplates[test.Id] = test;
@@ -103,7 +101,7 @@ namespace MoodleTestReader.Logic
                 Details = details
             };
             
-            _dataLoader.SaveTestResult(testResult);
+            DataLoader.SaveTestResult(testResult);
 
             // Оновлюємо кеш користувача в пам’яті
             if (user.TestResults == null)

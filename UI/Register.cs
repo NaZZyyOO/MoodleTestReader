@@ -26,15 +26,14 @@ public partial class Register : Form
             MessageBox.Show("Паролі не співпадають.");
             return;
         }
-
-        var dataLoader = new DataLoader();
-        if (dataLoader.UserExists(newUsername))
+        
+        if (DataLoader.UserExists(newUsername))
         {
             MessageBox.Show("Користувач з таким логіном уже існує.");
             return;
         }
 
-        dataLoader.CreateUser(newUsername, newPassword);
+        DataLoader.CreateUser(newUsername, newPassword);
         DialogResult = DialogResult.OK;
         Close();
     }

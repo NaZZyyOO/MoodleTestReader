@@ -21,6 +21,7 @@ namespace MoodleTestReader.UI
             this.questionPanel = new System.Windows.Forms.Panel();
             this.labelTime = new System.Windows.Forms.Label();
             this.recognitionLabel = new System.Windows.Forms.Label();
+            this.buttonManageRoles = new Button();
             this.SuspendLayout();
 
             // comboBoxTests
@@ -48,6 +49,15 @@ namespace MoodleTestReader.UI
             this.buttonReviewTest.UseVisualStyleBackColor = true;
             this.buttonReviewTest.Visible = false;
             this.buttonReviewTest.Click += new System.EventHandler(this.TestReview_Click);
+            
+            // buttonManageRoles (visible only for admin in runtime)
+            this.buttonManageRoles.Location = new System.Drawing.Point(400, 60);
+            this.buttonManageRoles.Name = "buttonManageRoles";
+            this.buttonManageRoles.Size = new System.Drawing.Size(160, 23);
+            this.buttonManageRoles.Text = "Управління ролями";
+            this.buttonManageRoles.UseVisualStyleBackColor = true;
+            this.buttonManageRoles.Visible = false;
+            this.buttonManageRoles.Click += new System.EventHandler(this.ButtonManageRoles_Click);
             
             // recognitionLabel
             this.recognitionLabel.Location = new System.Drawing.Point(400, 40);
@@ -83,6 +93,7 @@ namespace MoodleTestReader.UI
             this.Controls.Add(this.buttonReviewTest);
             this.Controls.Add(this.recognitionLabel);
             this.Controls.Add(this.questionPanel);
+            this.Controls.Add(this.buttonManageRoles);
             this.Name = "Test";
             this.Text = "Тестовий модуль";
             this.ResumeLayout(false);
@@ -95,5 +106,6 @@ namespace MoodleTestReader.UI
         private System.Windows.Forms.Panel questionPanel;
         private System.Windows.Forms.Label labelTime;
         private System.Windows.Forms.Label recognitionLabel;
+        private System.Windows.Forms.Button buttonManageRoles;
     }
 }

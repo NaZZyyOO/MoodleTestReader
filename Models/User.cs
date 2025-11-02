@@ -13,12 +13,14 @@ namespace MoodleTestReader.Models
         // Словник: айді теста = Словник(айді запитання, на яке дається відповідь = кількість набраних балів)
         public List<TestResult> TestResults { get; set; } = new List<TestResult>();
 
-        public User(int id, string username, string password)
+        public User(int id, string username, string password, bool isProfessor = false)
         {
-            this.Id = id;
-            this.Username = username;
-            this.Password = password;
+            Id = id;
+            Username = username;
+            Password = password;
+            IsProfessor = isProfessor;
 
         }
+        
     }
 }
