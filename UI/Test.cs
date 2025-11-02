@@ -13,7 +13,7 @@ namespace MoodleTestReader.UI
         private readonly Timer _testTimer;
         private int _remainingTime; // в секундах
         private DateTime _startTime;
-        private Panel _questionPanel;
+        
 
         // Диктування та голосові команди
         private readonly TestDictationService _dictation;
@@ -26,20 +26,17 @@ namespace MoodleTestReader.UI
         public Test()
         {
             InitializeComponent();
-            InitializeComponents();
-            
+
             _dictation = new TestDictationService(this);
 
-            // Vosk-команди: постачаємо назви тестів, поточне питання і панель з контролами
             _voiceCmd = new VoskCommandService(
                 this,
                 OnVoiceCommand,
                 () => _testManager?.GetAvailableTests().Select(t => t.TestName).ToList() ?? new List<string>(),
                 () => _testManager?.GetCurrentQuestionForUser(_currentUser),
-                () => _questionPanel
+                () => questionPanel
             );
 
-            // ПОКАЗАТИ ІНДИКАТОР З ПОЧАТКОВИМ ТЕКСТОМ
             if (recognitionLabel != null)
             {
                 recognitionLabel.Visible = true;
@@ -47,7 +44,6 @@ namespace MoodleTestReader.UI
                 recognitionLabel.ForeColor = Color.DimGray;
             }
 
-            // Показувати НЕ-командний текст користувача у лейблі
             _voiceCmd.RecognizedNonCommandText += (_, txt) =>
             {
                 try
@@ -55,7 +51,6 @@ namespace MoodleTestReader.UI
                     BeginInvoke(() =>
                     {
                         if (recognitionLabel == null) return;
-                        // На екрані вибору — завжди показуємо; під час тесту — тільки якщо TTS увімкнений
                         var shouldShow = comboBoxTests.Visible || _dictation.IsEnabled;
                         recognitionLabel.Visible = shouldShow;
                         if (!shouldShow) return;
@@ -67,7 +62,6 @@ namespace MoodleTestReader.UI
                 catch { }
             };
 
-            // Команди активні разом з TTS
             _dictation.EnabledChanged += (_, enabled) =>
             {
                 if (comboBoxTests.Visible)
@@ -102,12 +96,6 @@ namespace MoodleTestReader.UI
             comboBoxTests.SelectedValueChanged += TestReview;
         }
 
-        private void InitializeComponents()
-        {
-            _questionPanel = new Panel { Dock = DockStyle.Fill, Location = new Point(0, 0) };
-            Controls.Add(_questionPanel);
-        }
-
         private void ShowLoginScreen()
         {
             var loginForm = new Login();
@@ -117,7 +105,6 @@ namespace MoodleTestReader.UI
                 _testManager = new TestManager();
                 LoadAvailableTests();
                 
-                // Показати перемикач TTS; і відповідно увімкнути/вимкнути слухач
                 _voiceCmd.OnSelectionScreen();
                 _voiceCmd.SetActive(_dictation.IsEnabled);
                 _dictation.OnTestSelected();
@@ -145,7 +132,6 @@ namespace MoodleTestReader.UI
             }
         }
         
-        // Один з головних методів: початок тесту
         private async void StartTestButton_Click(object? sender, EventArgs e)
         {
             if (comboBoxTests.SelectedIndex == -1)
@@ -190,7 +176,7 @@ namespace MoodleTestReader.UI
 
         private async Task ShowCurrentQuestionAsync()
         {
-            _questionPanel.Controls.Clear();
+            questionPanel.Controls.Clear();
             
             if (_currentUser != null)
             {
@@ -222,7 +208,7 @@ namespace MoodleTestReader.UI
                 }
             
                 QuestionRenderer.RenderQuestion(
-                    _questionPanel,
+                    questionPanel,
                     question,
                     QuestionRenderMode.Play,
                     userAnswer: null,
@@ -232,7 +218,7 @@ namespace MoodleTestReader.UI
 
                 var buttonNext = new Button { Text = "Наступне", Location = new Point(10, 240), Width = 150, Height = 30 };
                 buttonNext.Click += NextButton_Click;
-                _questionPanel.Controls.Add(buttonNext);
+                questionPanel.Controls.Add(buttonNext);
 
                 await _dictation.OnQuestionShownAsync(question);
                 
@@ -251,7 +237,9 @@ namespace MoodleTestReader.UI
         private async void NextButton_Click(object? sender, EventArgs e)
         {
             var question = _testManager.GetCurrentQuestionForUser(_currentUser);
-            var answer = ExtractAnswerFromQuestionPanel(question);
+            var answer = question != null 
+                ? UIHelper.ExtractAnswerFromQuestionPanel(questionPanel, question)
+                : null;
             
             if (answer == null || (answer is List<string> list && list.Count == 0) || (answer is string s && string.IsNullOrWhiteSpace(s)))
             {
@@ -259,47 +247,9 @@ namespace MoodleTestReader.UI
                 return;
             }
             
-            _testManager.SubmitAnswerForUser(_currentUser, answer);
+            _testManager.SubmitAnswerForUser(_currentUser, answer!);
             _questionNumber++;
             await ShowCurrentQuestionAsync();
-        }
-        
-        private object? ExtractAnswerFromQuestionPanel(Question question)
-        {
-            switch (question)
-            {
-                case MultipleChoiceQuestion:
-                {
-                    var selected = new List<string>();
-                    foreach (Control c in _questionPanel.Controls)
-                    {
-                        if (c is CheckBox cb && cb.Enabled && cb.Checked)
-                            selected.Add(cb.Text);
-                    }
-                    return selected;
-                }
-                case FillInBlankQuestion:
-                {
-                    foreach (Control c in _questionPanel.Controls)
-                        if (c is TextBox tb && !tb.ReadOnly)
-                            return tb.Text;
-                    return string.Empty;
-                }
-                case TrueFalseQuestion:
-                {
-                    foreach (Control c in _questionPanel.Controls)
-                        if (c is RadioButton rb && rb.Enabled && rb.Checked)
-                            return bool.Parse(rb.Text);
-                    return null;
-                }
-                default:
-                {
-                    foreach (Control c in _questionPanel.Controls)
-                        if (c is RadioButton rb && rb.Enabled && rb.Checked)
-                            return rb.Text;
-                    return null;
-                }
-            }
         }
         
         private void TestReview(object? sender, EventArgs e)
@@ -363,7 +313,7 @@ namespace MoodleTestReader.UI
             buttonReviewTest.Visible = false;
             labelTime.Visible = false;
 
-            _questionPanel.Controls.Clear();
+            questionPanel.Controls.Clear();
 
             var reviewFlow = new FlowLayoutPanel
             {
@@ -385,7 +335,7 @@ namespace MoodleTestReader.UI
                 }
             };
 
-            _questionPanel.Controls.Add(reviewFlow);
+            questionPanel.Controls.Add(reviewFlow);
 
             int index = 1;
             foreach (var q in currentTest.Questions)
@@ -443,7 +393,7 @@ namespace MoodleTestReader.UI
             };
             btnClose.Click += (_, _) =>
             {
-                _questionPanel.Controls.Clear();
+                questionPanel.Controls.Clear();
                 comboBoxTests.Visible = true;
                 TestReview(null, EventArgs.Empty);
                 labelTime.Visible = false;
@@ -478,7 +428,7 @@ namespace MoodleTestReader.UI
                 _ = _dictation.OnTestFinishedAsync(score);
 
                 MessageBox.Show($"Час вичерпано. Тест завершено. Ваш результат: {score} балів.");
-                _questionPanel.Controls.Clear();
+                questionPanel.Controls.Clear();
 
                 buttonStartTest.Visible = true;
                 comboBoxTests.Visible = true;
@@ -495,7 +445,6 @@ namespace MoodleTestReader.UI
             }
         }
         
-        // Обробка команд, додатково цей метод уже показує у лейблі тексти для команд/диктування
         private async void OnVoiceCommand(VoiceCommand cmd)
         {
             void ShowCmd(string text)
@@ -580,7 +529,7 @@ namespace MoodleTestReader.UI
 
                 case VoiceCommandType.NextQuestion:
                     ShowCmd("команда — Далі");
-                    SimulateNextClick();
+                    UIHelper.SimulateNextClick(questionPanel);
                     break;
 
                 case VoiceCommandType.PreviousQuestion:
@@ -589,27 +538,27 @@ namespace MoodleTestReader.UI
 
                 case VoiceCommandType.SelectOptionIndex:
                     ShowCmd($"вибрати варіант — {cmd.Index}");
-                    if (cmd.Index.HasValue) SelectSingleOptionByIndex(cmd.Index.Value);
+                    if (cmd.Index.HasValue) UIHelper.SelectSingleOptionByIndex(questionPanel, cmd.Index.Value);
                     break;
 
                 case VoiceCommandType.ToggleOptionIndex:
                     ShowCmd($"перемкнути варіант — {cmd.Index}");
-                    if (cmd.Index.HasValue) ToggleMultiOptionByIndex(cmd.Index.Value);
+                    if (cmd.Index.HasValue) UIHelper.ToggleMultiOptionByIndex(questionPanel, cmd.Index.Value);
                     break;
 
                 case VoiceCommandType.ClearSelection:
                     ShowCmd("команда — Очистити вибір");
-                    ClearSelection();
+                    UIHelper.ClearSelection(questionPanel);
                     break;
 
                 case VoiceCommandType.SetTrue:
                     ShowCmd("команда — Істина");
-                    SetTrueFalse(true);
+                    UIHelper.SetTrueFalse(questionPanel, true);
                     break;
 
                 case VoiceCommandType.SetFalse:
                     ShowCmd("команда — Хиба");
-                    SetTrueFalse(false);
+                    UIHelper.SetTrueFalse(questionPanel, false);
                     break;
 
                 case VoiceCommandType.ReadQuestion:
@@ -640,95 +589,25 @@ namespace MoodleTestReader.UI
                 case VoiceCommandType.InputTextAppend:
                     if (!string.IsNullOrWhiteSpace(cmd.Argument))
                     {
-                        // Показати сам розпізнаний текст (не команда) і додати в поле
                         if (recognitionLabel != null)
                         {
                             recognitionLabel.Visible = true;
                             recognitionLabel.ForeColor = Color.ForestGreen;
                             recognitionLabel.Text = $"Розпізнано: {cmd.Argument}";
                         }
-                        AppendToTextBox(cmd.Argument);
+                        UIHelper.AppendToTextBox(questionPanel, cmd.Argument);
                     }
                     break;
 
                 case VoiceCommandType.ClearText:
                     ShowCmd("команда — Очистити поле");
-                    ClearTextBox();
+                    UIHelper.ClearTextBox(questionPanel);
                     break;
+
                 case VoiceCommandType.None:
                     ShowCmd("не розпізнано");
                     break;
             }
-        }
-        
-        // Симуляція натискання кнопки Наступне
-        private void SimulateNextClick()
-        {
-            var btn = _questionPanel.Controls.OfType<Button>().FirstOrDefault(b => b.Text.Contains("Наступ", StringComparison.OrdinalIgnoreCase));
-            if (btn != null)
-                btn.PerformClick();
-        }
-
-        private void SelectSingleOptionByIndex(int index1)
-        {
-            if (index1 <= 0) return;
-            var radios = _questionPanel.Controls.OfType<RadioButton>().ToList();
-            if (radios.Count >= index1)
-            {
-                foreach (var r in radios) r.Checked = false;
-                radios[index1 - 1].Checked = true;
-                return;
-            }
-
-            var tf = radios;
-            if (tf.Count == 2 && index1 <= 2)
-            {
-                tf[0].Checked = index1 == 1;
-                tf[1].Checked = index1 == 2;
-            }
-        }
-
-        private void ToggleMultiOptionByIndex(int index1)
-        {
-            if (index1 <= 0) return;
-            var checks = _questionPanel.Controls.OfType<CheckBox>().ToList();
-            if (checks.Count >= index1)
-                checks[index1 - 1].Checked = !checks[index1 - 1].Checked;
-        }
-
-        private void ClearSelection()
-        {
-            foreach (var cb in _questionPanel.Controls.OfType<CheckBox>())
-                cb.Checked = false;
-            foreach (var rb in _questionPanel.Controls.OfType<RadioButton>())
-                rb.Checked = false;
-        }
-
-        private void SetTrueFalse(bool value)
-        {
-            var radios = _questionPanel.Controls.OfType<RadioButton>().ToList();
-            if (radios.Count == 2)
-            {
-                radios[0].Checked = value;
-                radios[1].Checked = !value;
-            }
-        }
-
-        private void AppendToTextBox(string text)
-        {
-            var tb = _questionPanel.Controls.OfType<TextBox>().FirstOrDefault();
-            if (tb == null) return;
-
-            if (tb.Text.Length > 0 && !char.IsWhiteSpace(tb.Text.Last()))
-                tb.AppendText(" ");
-            tb.AppendText(text);
-        }
-
-        private void ClearTextBox()
-        {
-            var tb = _questionPanel.Controls.OfType<TextBox>().FirstOrDefault();
-            if (tb == null) return;
-            tb.Clear();
         }
     }
 }
