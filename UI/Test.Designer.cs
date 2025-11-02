@@ -21,7 +21,7 @@ namespace MoodleTestReader.UI
             this.questionPanel = new System.Windows.Forms.Panel();
             this.labelTime = new System.Windows.Forms.Label();
             this.recognitionLabel = new System.Windows.Forms.Label();
-            this.buttonManageRoles = new Button();
+            this.buttonManageRoles = new System.Windows.Forms.Button();
             this.SuspendLayout();
 
             // comboBoxTests
@@ -89,11 +89,11 @@ namespace MoodleTestReader.UI
             this.ClientSize = new System.Drawing.Size(600, 400);
             this.Controls.Add(this.comboBoxTests);
             this.Controls.Add(this.buttonStartTest);
+            this.Controls.Add(this.buttonManageRoles);
             this.Controls.Add(this.labelTime);
             this.Controls.Add(this.buttonReviewTest);
             this.Controls.Add(this.recognitionLabel);
             this.Controls.Add(this.questionPanel);
-            this.Controls.Add(this.buttonManageRoles);
             this.Name = "Test";
             this.Text = "Тестовий модуль";
             this.ResumeLayout(false);

@@ -29,6 +29,7 @@ namespace MoodleTestReader.UI
             this.gridUsers.Name = "gridUsers";
             this.gridUsers.Size = new System.Drawing.Size(560, 320);
             this.gridUsers.TabIndex = 0;
+            // AutoGenerateColumns вимикаємо в коді (див. BuildGrid)
 
             // buttonSave
             this.buttonSave.Location = new System.Drawing.Point(392, 345);
