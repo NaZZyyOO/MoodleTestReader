@@ -15,7 +15,7 @@ namespace MoodleTestReader.UI
         private DateTime _startTime;
         private Panel _questionPanel;
 
-        // Диктування
+        // Диктування та голосові команди
         private readonly TestDictationService _dictation;
         private readonly VoskCommandService _voiceCmd;
 
@@ -47,12 +47,12 @@ namespace MoodleTestReader.UI
                 recognitionLabel.ForeColor = Color.DimGray;
             }
 
-            // НОВЕ: показувати НЕ-командний текст користувача у лейблі
+            // Показувати НЕ-командний текст користувача у лейблі
             _voiceCmd.RecognizedNonCommandText += (_, txt) =>
             {
                 try
                 {
-                    BeginInvoke(new Action(() =>
+                    BeginInvoke(() =>
                     {
                         if (recognitionLabel == null) return;
                         // На екрані вибору — завжди показуємо; під час тесту — тільки якщо TTS увімкнений
@@ -62,7 +62,7 @@ namespace MoodleTestReader.UI
 
                         recognitionLabel.ForeColor = Color.ForestGreen;
                         recognitionLabel.Text = $"Розпізнано: {txt}";
-                    }));
+                    });
                 }
                 catch { }
             };
@@ -495,7 +495,7 @@ namespace MoodleTestReader.UI
             }
         }
         
-        // Обробка команд (як було), додатково цей метод уже показує у лейблі тексти для команд/диктації
+        // Обробка команд, додатково цей метод уже показує у лейблі тексти для команд/диктування
         private async void OnVoiceCommand(VoiceCommand cmd)
         {
             void ShowCmd(string text)
@@ -655,9 +655,13 @@ namespace MoodleTestReader.UI
                     ShowCmd("команда — Очистити поле");
                     ClearTextBox();
                     break;
+                case VoiceCommandType.None:
+                    ShowCmd("не розпізнано");
+                    break;
             }
         }
-
+        
+        // Симуляція натискання кнопки Наступне
         private void SimulateNextClick()
         {
             var btn = _questionPanel.Controls.OfType<Button>().FirstOrDefault(b => b.Text.Contains("Наступ", StringComparison.OrdinalIgnoreCase));

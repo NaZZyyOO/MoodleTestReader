@@ -4,7 +4,7 @@ using MoodleTestReader.Speech;
 
 namespace MoodleTestReader.Services
 {
-    // Єдиний слухач мікрофона: і для команд, і для диктації текстових відповідей (Fill in the Blank).
+    // Єдиний слухач мікрофона: і для команд, і для диктування текстових відповідей (Fill in the Blank).
     // Активується тільки коли увімкнений TTS (щоб не заважати користувачам).
     public class VoskCommandService : IDisposable
     {
@@ -21,7 +21,7 @@ namespace MoodleTestReader.Services
         private bool _active;
         private bool _inSelectionMode = true;
 
-        public bool IsAvailable => _recognizer.IsAvailable;
+        private bool IsAvailable => _recognizer.IsAvailable;
 
         // ДОДАНО: подія для НЕ-командного розпізнаного тексту (щоб показувати в регокнішин-лейблі)
         public event EventHandler<string>? RecognizedNonCommandText;
@@ -232,12 +232,12 @@ namespace MoodleTestReader.Services
         private static int? TryParseOrdinalIndex(string s)
         {
             // мінімальний словник
-            if (s.Contains("перш", StringComparison.OrdinalIgnoreCase)) return 1;
-            if (s.Contains("друг", StringComparison.OrdinalIgnoreCase)) return 2;
-            if (s.Contains("трет", StringComparison.OrdinalIgnoreCase)) return 3;
-            if (s.Contains("четвер", StringComparison.OrdinalIgnoreCase)) return 4;
-            if (s.Contains("п'ят", StringComparison.OrdinalIgnoreCase) || s.Contains("пят", StringComparison.OrdinalIgnoreCase)) return 5;
-            if (s.Contains("шост", StringComparison.OrdinalIgnoreCase)) return 6;
+            if (s.Contains("один", StringComparison.OrdinalIgnoreCase)) return 1;
+            if (s.Contains("два", StringComparison.OrdinalIgnoreCase)) return 2;
+            if (s.Contains("три", StringComparison.OrdinalIgnoreCase)) return 3;
+            if (s.Contains("чотири", StringComparison.OrdinalIgnoreCase)) return 4;
+            if (s.Contains("п'ять", StringComparison.OrdinalIgnoreCase) || s.Contains("пять", StringComparison.OrdinalIgnoreCase)) return 5;
+            if (s.Contains("шість", StringComparison.OrdinalIgnoreCase)) return 6;
             return null;
         }
 
