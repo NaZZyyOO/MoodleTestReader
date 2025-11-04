@@ -8,7 +8,7 @@ namespace MoodleTestReader.UI
 {
     public partial class Test : Form
     {
-        private User _currentUser;
+        private User? _currentUser;
         private TestManager _testManager;
         private readonly Timer _testTimer;
         private int _remainingTime; // в секундах
@@ -29,13 +29,17 @@ namespace MoodleTestReader.UI
 
             _dictation = new TestDictationService(this);
 
-            _voiceCmd = new VoskCommandService(
-                this,
-                OnVoiceCommand,
-                () => _testManager?.GetAvailableTests().Select(t => t.TestName).ToList() ?? new List<string>(),
-                () => _testManager?.GetCurrentQuestionForUser(_currentUser),
-                () => questionPanel
-            );
+            if (_currentUser != null)
+            {
+
+                _voiceCmd = new VoskCommandService(
+                    this,
+                    OnVoiceCommand,
+                    () => _testManager?.GetAvailableTests().Select(t => t.TestName).ToList() ?? new List<string>(),
+                    () => _testManager?.GetCurrentQuestionForUser(_currentUser),
+                    () => questionPanel
+                );
+            }
 
             if (recognitionLabel != null)
             {
@@ -55,7 +59,7 @@ namespace MoodleTestReader.UI
                         recognitionLabel.Visible = shouldShow;
                         if (!shouldShow) return;
 
-                        recognitionLabel.ForeColor = Color.ForestGreen;
+                        recognitionLabel.ForeColor = Color.DimGray;
                         recognitionLabel.Text = $"Розпізнано: {txt}";
                     });
                 }
@@ -96,6 +100,7 @@ namespace MoodleTestReader.UI
             comboBoxTests.SelectedValueChanged += TestReview;
         }
         
+        // Користувач "admin" має право редагувати ролі користувачів(студент, викладач) 
         private bool IsAdmin() =>
             _currentUser != null &&
             string.Equals(_currentUser.Username, "admin", StringComparison.OrdinalIgnoreCase);
@@ -138,7 +143,10 @@ namespace MoodleTestReader.UI
                 dlg.ShowDialog(this);
             }
         }
-
+        
+        // Завантажити всі наявні тести в ComboBox
+        // Можна покращити змінивши отримання всіх наявних тестів
+        // на отримання всіх доступних тестів для користувача
         private void LoadAvailableTests()
         {
             var tests = _testManager.GetAvailableTests();
@@ -149,6 +157,7 @@ namespace MoodleTestReader.UI
             }
         }
         
+        // Запустити тест, якщо вибрано
         private async void StartTestButton_Click(object? sender, EventArgs e)
         {
             if (comboBoxTests.SelectedIndex == -1)
@@ -165,6 +174,7 @@ namespace MoodleTestReader.UI
                 return;
             }
             
+            // Розпочинаємо сесію тесту за допомогою тестового менеджера
             _testManager.StartTestForUser(_currentUser, currentTest.Id);
             _remainingTime = currentTest.TimeLimit * 60;
             labelTime.Text = $"Залишилось: {currentTest.TimeLimit}:00";
@@ -177,7 +187,8 @@ namespace MoodleTestReader.UI
             
             _questionNumber = 1;
             _totalQuestions = currentTest.Questions.Count;
-
+            
+            // Запускаємо диктування та встановлюємо розпізнавання голосу як активне
             _dictation.OnTestStarted(_totalQuestions);
             _voiceCmd.SetActive(_dictation.IsEnabled);
 
@@ -188,69 +199,75 @@ namespace MoodleTestReader.UI
                 recognitionLabel.ForeColor = Color.DimGray;
             }
             
+            // Відображення запитання в UI
             await ShowCurrentQuestionAsync();
         }
 
         private async Task ShowCurrentQuestionAsync()
         {
             questionPanel.Controls.Clear();
-            
-            if (_currentUser != null)
+
+            var question = _testManager.GetCurrentQuestionForUser(_currentUser);
+
+            // Якщо наступного запитання немає, то тест завершено.
+            if (question == null)
             {
-                var question = _testManager.GetCurrentQuestionForUser(_currentUser);
-                if (question == null)
-                {
-                    _testTimer.Stop();
-                    _testManager.SaveResultsForUser(_currentUser, out int score, _startTime);
+                _testTimer.Stop();
+                _testManager.SaveResultsForUser(_currentUser, out int score, _startTime);
 
-                    comboBoxTests.Visible = true;
-                    buttonStartTest.Visible = true;
-                    labelTime.Visible = false;
+                comboBoxTests.Visible = true;
+                buttonStartTest.Visible = true;
+                labelTime.Visible = false;
 
-                    await _dictation.OnTestFinishedAsync(score);
+                await _dictation.OnTestFinishedAsync(score);
 
-                    TestReview(null, EventArgs.Empty);
-                    _voiceCmd.OnSelectionScreen();
-                    _voiceCmd.SetActive(_dictation.IsEnabled);
-
-                    if (recognitionLabel != null)
-                    {
-                        recognitionLabel.Visible = true;
-                        recognitionLabel.Text = "Розпізнавання…";
-                        recognitionLabel.ForeColor = Color.DimGray;
-                    }
-
-                    MessageBox.Show($"Тест завершено. Ваш результат: {score} балів. Залишковий час: {TimeSpan.FromSeconds(_remainingTime):mm\\:ss}");
-                    return;
-                }
-            
-                QuestionRenderer.RenderQuestion(
-                    questionPanel,
-                    question,
-                    QuestionRenderMode.Play,
-                    userAnswer: null,
-                    includeQuestionTitle: true,
-                    headerPrefix: null
-                );
-
-                var buttonNext = new Button { Text = "Наступне", Location = new Point(10, 240), Width = 150, Height = 30 };
-                buttonNext.Click += NextButton_Click;
-                questionPanel.Controls.Add(buttonNext);
-
-                await _dictation.OnQuestionShownAsync(question);
-                
-                _voiceCmd.OnTestStarted(_dictation.IsEnabled);
+                TestReview(null, EventArgs.Empty);
+                _voiceCmd.OnSelectionScreen();
                 _voiceCmd.SetActive(_dictation.IsEnabled);
 
                 if (recognitionLabel != null)
                 {
-                    recognitionLabel.Visible = _dictation.IsEnabled;
+                    recognitionLabel.Visible = true;
                     recognitionLabel.Text = "Розпізнавання…";
                     recognitionLabel.ForeColor = Color.DimGray;
                 }
+
+                MessageBox.Show(
+                    $"Тест завершено. Ваш результат: {score} балів. Залишковий час: {TimeSpan.FromSeconds(_remainingTime):mm\\:ss}");
+                return;
             }
+
+            // Використовуємо рендерер для рендеру запитання
+            QuestionRenderer.RenderQuestion(
+                questionPanel,
+                question,
+                QuestionRenderMode.Play,
+                userAnswer: null,
+                includeQuestionTitle: true,
+                headerPrefix: null
+            );
+
+            var buttonNext = new Button { Text = "Наступне", Location = new Point(10, 240), Width = 150, Height = 30 };
+            buttonNext.Click += NextButton_Click;
+            questionPanel.Controls.Add(buttonNext);
+
+            // Асинхронне диктування поточного питання
+            await _dictation.OnQuestionShownAsync(question);
+
+            _voiceCmd.OnTestStarted(_dictation.IsEnabled);
+            _voiceCmd.SetActive(_dictation.IsEnabled);
+
+            if (recognitionLabel != null)
+            {
+                recognitionLabel.Visible = _dictation.IsEnabled;
+                recognitionLabel.Text = "Розпізнавання…";
+                recognitionLabel.ForeColor = Color.DimGray;
+            }
+
         }
 
+        // Перехід до наступного запитання, логіка зміни поточного запитання
+        // Його перевірки, збереження відповіді та показ наступного запитання
         private async void NextButton_Click(object? sender, EventArgs e)
         {
             var question = _testManager.GetCurrentQuestionForUser(_currentUser);
@@ -269,6 +286,9 @@ namespace MoodleTestReader.UI
             await ShowCurrentQuestionAsync();
         }
         
+        // Метод для візуального відображення кнопок у випадку
+        // Якщо у користувача цей тест завершений, 
+        // Тоді тест повинен перейти в режим огляду для користувача
         private void TestReview(object? sender, EventArgs e)
         {
             if (comboBoxTests.SelectedItem == null) return;
@@ -299,6 +319,10 @@ namespace MoodleTestReader.UI
             }
         }
         
+        // Огляд тесту
+        // За допомогою рендереру генеруємо меню з 
+        // панеллю яке можна прокручувати, де знаходяться
+        // всі запитання тесту з відповідями користувача
         private void TestReview_Click(object? sender, EventArgs e)
         {
             if (comboBoxTests.SelectedIndex == -1)
@@ -331,7 +355,8 @@ namespace MoodleTestReader.UI
             labelTime.Visible = false;
 
             questionPanel.Controls.Clear();
-
+            
+            // Панель яку можна крутити горизонтально та вертикально
             var reviewFlow = new FlowLayoutPanel
             {
                 Dock = DockStyle.Fill,
@@ -353,7 +378,8 @@ namespace MoodleTestReader.UI
             };
 
             questionPanel.Controls.Add(reviewFlow);
-
+            
+            // Генеруємо панелі питань та додаємо на панель з прокруткою
             int index = 1;
             foreach (var q in currentTest.Questions)
             {
@@ -622,6 +648,7 @@ namespace MoodleTestReader.UI
                     break;
 
                 case VoiceCommandType.None:
+                default:
                     ShowCmd("не розпізнано");
                     break;
             }

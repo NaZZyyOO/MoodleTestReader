@@ -69,12 +69,6 @@ namespace MoodleTestReader.Services
             SetActive(activeNow);
         }
 
-        public void OnTestFinished(bool activeNow)
-        {
-            _inSelectionMode = true;
-            SetActive(activeNow);
-        }
-
         private void Start()
         {
             if (!IsAvailable) return;
@@ -169,10 +163,10 @@ namespace MoodleTestReader.Services
             else
             {
                 // Під час тесту
-                if (HasAny(s, "далі", "наступне питання", "next question", "підтвердити", "підтвердити відповідь"))
+                if (HasAny(s, "далі", "наступне", "next", "підтвердити", "підтвердити відповідь"))
                     return new VoiceCommand { Type = VoiceCommandType.NextQuestion };
 
-                if (HasAny(s, "повернутись", "попереднє питання", "previous question"))
+                if (HasAny(s, "повернутись", "попереднє", "previous"))
                     return new VoiceCommand { Type = VoiceCommandType.PreviousQuestion };
 
                 if (HasAny(s, "повторити питання", "прочитати питання", "read question"))
@@ -190,34 +184,49 @@ namespace MoodleTestReader.Services
                 if (HasAny(s, "очистити вибір", "скинути вибір", "clear selection"))
                     return new VoiceCommand { Type = VoiceCommandType.ClearSelection };
 
-                if (HasAny(s, "істина", "правда", "true"))
+                if (HasAny(s, "істина", "правда", "правильно", "true"))
                     return new VoiceCommand { Type = VoiceCommandType.SetTrue };
 
-                if (HasAny(s, "хиба", "неправда", "false"))
+                if (HasAny(s, "хиба", "неправда", "неправильно", "false"))
                     return new VoiceCommand { Type = VoiceCommandType.SetFalse };
 
                 if (HasAny(s, "очистити поле", "стерти текст", "clear text"))
                     return new VoiceCommand { Type = VoiceCommandType.ClearText };
 
-                // Вибір варіанту: “вибрати варіант 2”, “позначити варіант 3”, “зняти варіант 4”
+                // Універсальний вибір номера: "вибрати 2", "обрати 3" (без слова "варіант")
+                var pickNum = Regex.Match(s, @"^(?:вибрати|обрати|choose)\s+(\d+)\b");
+                if (pickNum.Success)
+                {
+                    var idx = SafeInt(pickNum.Groups[1].Value);
+                    var q = _getCurrentQuestion();
+                    var type = (q is MultipleChoiceQuestion)
+                        ? VoiceCommandType.ToggleOptionIndex // для Multi — перемикаємо чекбокс
+                        : VoiceCommandType.SelectOptionIndex; // для Single/TF — обираємо
+                    return new VoiceCommand { Type = type, Index = idx };
+                }
+
+                // Варіанти з "варіант": “вибрати варіант 2” — теж працює аналогічно
                 var choose = Regex.Match(s, @"(?:вибрати|обрати|choose).*(?:варіант|option)\s+(\d+)");
                 if (choose.Success)
                 {
                     var idx = SafeInt(choose.Groups[1].Value);
-                    return new VoiceCommand { Type = VoiceCommandType.SelectOptionIndex, Index = idx };
+                    var q = _getCurrentQuestion();
+                    var type = (q is MultipleChoiceQuestion)
+                        ? VoiceCommandType.ToggleOptionIndex
+                        : VoiceCommandType.SelectOptionIndex;
+                    return new VoiceCommand { Type = type, Index = idx };
                 }
 
-                var toggle = Regex.Match(s, @"(?:позначити|зняти|toggle).*(?:варіант|option)\s+(\d+)");
-                if (toggle.Success)
-                {
-                    var idx = SafeInt(toggle.Groups[1].Value);
-                    return new VoiceCommand { Type = VoiceCommandType.ToggleOptionIndex, Index = idx };
-                }
-
-                // Також підтримка порядкових: перший/другий/третій/четвертий/п'ятий/шостий
+                // Підтримка порядкових слів: “перший/другий/третій...” -> 1..6
                 var ordinalIndex = TryParseOrdinalIndex(s);
                 if (ordinalIndex.HasValue)
-                    return new VoiceCommand { Type = VoiceCommandType.SelectOptionIndex, Index = ordinalIndex.Value };
+                {
+                    var q = _getCurrentQuestion();
+                    var type = (q is MultipleChoiceQuestion)
+                        ? VoiceCommandType.ToggleOptionIndex
+                        : VoiceCommandType.SelectOptionIndex;
+                    return new VoiceCommand { Type = type, Index = ordinalIndex.Value };
+                }
             }
 
             return new VoiceCommand { Type = VoiceCommandType.None };
@@ -245,6 +254,7 @@ namespace MoodleTestReader.Services
         {
             if (names == null || names.Count == 0) return null;
             spoken = Normalize(spoken);
+            
             // Спочатку точний contains
             var exact = names.FirstOrDefault(n => Normalize(n).Contains(spoken));
             if (!string.IsNullOrEmpty(exact)) return exact;

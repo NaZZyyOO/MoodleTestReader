@@ -9,12 +9,13 @@ namespace MoodleTestReader.Speech;
 // Відтворення через MCI (winmm) — без COM, без NuGet, без встановлення програм.
 public class GoogleTranslateTts
 {
+    // Браузерний клієнт
     private readonly HttpClient _http = new HttpClient(new HttpClientHandler
     {
         AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate
     });
 
-    private readonly object _playLock = new();
+    private readonly Lock _playLock = new Lock();
     private string? _currentTempFile;
     private string? _currentAlias;
 
@@ -23,7 +24,8 @@ public class GoogleTranslateTts
 
     [DllImport("winmm.dll", CharSet = CharSet.Auto)]
     private static extern int mciSendString(string command, StringBuilder? returnValue, int returnLength, IntPtr winHandle);
-
+    
+    // Ініціалізуємо об'єкт, уточнивши браузер та URL 
     public GoogleTranslateTts()
     {
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64)");

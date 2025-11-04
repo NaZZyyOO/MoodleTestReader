@@ -40,7 +40,7 @@ namespace MoodleTestReader.Services
 
                 if (!_enabled)
                 {
-                    try { await _tts.CancelAsync(); } catch { }
+                    await _tts.CancelAsync();
                     _cts.Cancel();
                 }
             };
@@ -95,22 +95,17 @@ namespace MoodleTestReader.Services
             _cts.Dispose();
             _cts = new CancellationTokenSource();
 
-            try
-            {
-                await _tts.CancelAsync();
-                await _tts.SpeakQuestionAsync(
-                    q.question,
-                    q.Options,
-                    _questionNumber,
-                    _totalQuestions,
-                    PauseAfterQuestionMs,
-                    PauseBetweenOptionsMs,
-                    AnnounceCounts,
-                    _cts.Token
-                );
-            }
-            catch (OperationCanceledException) { }
-            catch { }
+            await _tts.CancelAsync();
+            await _tts.SpeakQuestionAsync(
+                q.question,
+                q.Options,
+                _questionNumber,
+                _totalQuestions,
+                PauseAfterQuestionMs,
+                PauseBetweenOptionsMs,
+                AnnounceCounts,
+                _cts.Token
+            );
         }
 
         public void OnNextQuestion()
@@ -128,13 +123,8 @@ namespace MoodleTestReader.Services
                 _cts.Dispose();
                 _cts = new CancellationTokenSource();
 
-                try
-                {
-                    await _tts.CancelAsync();
-                    await _tts.SpeakScoreAsync(score, _cts.Token);
-                }
-                catch (OperationCanceledException) { }
-                catch { }
+                await _tts.CancelAsync();
+                await _tts.SpeakScoreAsync(score, _cts.Token);
             }
 
             _toggle.Visible = true;
@@ -143,13 +133,9 @@ namespace MoodleTestReader.Services
 
         public void Dispose()
         {
-            try
-            {
-                _cts.Cancel();
-                _cts.Dispose();
-                _tts.Dispose();
-            }
-            catch { }
+            _cts.Cancel();
+            _cts.Dispose();
+            _tts.Dispose();
         }
     }
 }
