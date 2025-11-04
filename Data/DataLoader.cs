@@ -29,7 +29,9 @@ namespace MoodleTestReader.Data
                     CREATE TABLE IF NOT EXISTS Tests (
                         Id INT AUTO_INCREMENT PRIMARY KEY,
                         TestName VARCHAR(100) NOT NULL,
-                        TimeLimit INT NOT NULL
+                        TimeLimit INT NOT NULL,
+                        AuthorId INT NOT NULL DEFAULT 0,
+                        FOREIGN KEY (AuthorId) REFERENCES Users(Id)
                     )";
                 const string createQuestionsTable = @"
                     CREATE TABLE IF NOT EXISTS Questions (
@@ -179,6 +181,7 @@ namespace MoodleTestReader.Data
                         while (reader.Read())
                         {
                             var test = new Test(
+                                Convert.ToInt32(reader["AuthorId"]),
                                 Convert.ToInt32(reader["Id"]),
                                 reader["TestName"].ToString(),
                                 new List<Question>(),
@@ -263,6 +266,23 @@ namespace MoodleTestReader.Data
             }
             return tests;
         }
+        
+        public static Test CreateTest(string name, int authorId, int timeLimit = 30)
+        {
+            using var connection = new MySqlConnection(ConnectionString);
+            connection.Open();
+            const string insert = @"INSERT INTO Tests (TestName, TimeLimit, AuthorId) VALUES (@name, @limit, @author)";
+            using var cmd = new MySqlCommand(insert, connection);
+            cmd.Parameters.AddWithValue("@name", name);
+            cmd.Parameters.AddWithValue("@limit", timeLimit);
+            cmd.Parameters.AddWithValue("@author", authorId);
+            cmd.ExecuteNonQuery();
+
+            cmd.CommandText = "SELECT LAST_INSERT_ID()";
+            var newId = Convert.ToInt32(cmd.ExecuteScalar());
+
+            return new Test(authorId, newId, name, new List<Question>(), timeLimit);
+        }
 
         public static void SaveTests(List<Test> tests)
         {
@@ -276,6 +296,7 @@ namespace MoodleTestReader.Data
                         ON DUPLICATE KEY UPDATE TestName = @testName, TimeLimit = @timeLimit";
                     using (var command = new MySqlCommand(testQuery, connection))
                     {
+                        command.Parameters.AddWithValue("@authorId", test.AuthorId);
                         command.Parameters.AddWithValue("@id", test.Id == 0 ? null : test.Id);
                         command.Parameters.AddWithValue("@testName", test.TestName);
                         command.Parameters.AddWithValue("@timeLimit", test.TimeLimit);
@@ -529,7 +550,49 @@ namespace MoodleTestReader.Data
 
             return users;
         }
-        
+
+        public static User? GetUserById(int userId)
+        {
+            using var connection = new MySqlConnection(ConnectionString);
+            connection.Open();
+
+            // На випадок старих БД — гарантуємо колонку IsProfessor
+            EnsureIsProfessorColumn(connection);
+
+            const string sql = @"
+            SELECT Id, Username, Password, COALESCE(IsProfessor, 0) AS IsProfessor
+                FROM Users WHERE Id = @id";
+            using var cmd = new MySqlCommand(sql, connection);
+            cmd.Parameters.AddWithValue("@id", userId);
+
+            using var reader = cmd.ExecuteReader();
+            if (!reader.Read())
+                return null;
+
+            var id = reader.GetInt32("Id");
+            var username = reader["Username"]?.ToString() ?? "";
+            var passwordHash = reader["Password"]?.ToString() ?? "";
+            var isProfessor = !reader.IsDBNull(reader.GetOrdinal("IsProfessor")) &&
+                              Convert.ToInt32(reader["IsProfessor"]) != 0;
+
+            // Створюємо користувача. Якщо є конструктор з прапорцем — можна використовувати його.
+            var user = new User(id, username, passwordHash, isProfessor);
+            
+            user.ProfessorsTests = new List<int>();
+            reader.Close(); // закриваємо reader перед наступним запитом
+
+            const string authoredSql = "SELECT Id FROM Tests WHERE AuthorId = @uid";
+            using var cmdAuthored = new MySqlCommand(authoredSql, connection);
+            cmdAuthored.Parameters.AddWithValue("@uid", id);
+            using var authoredReader = cmdAuthored.ExecuteReader();
+            while (authoredReader.Read())
+            {
+                user.ProfessorsTests.Add(authoredReader.GetInt32("Id"));
+            }
+
+            return user;
+        }
+
         public static void UpdateUserProfessorFlag(int userId, bool isProfessor)
         {
             using (var connection = new MySqlConnection(ConnectionString))

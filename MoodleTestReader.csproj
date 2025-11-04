@@ -28,6 +28,15 @@
       <Compile Update="UI\AdminRolesForm.cs">
         <SubType>Form</SubType>
       </Compile>
+      <Compile Update="UI\TestManagerForm.cs">
+        <SubType>Form</SubType>
+      </Compile>
+      <Compile Update="UI\NamePromptForm.cs">
+        <SubType>Form</SubType>
+      </Compile>
+      <Compile Update="UI\TestEditorForm.cs">
+        <SubType>Form</SubType>
+      </Compile>
     </ItemGroup>
 
 </Project>

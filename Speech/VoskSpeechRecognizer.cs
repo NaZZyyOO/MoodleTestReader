@@ -73,11 +73,6 @@ namespace MoodleTestReader.Speech
                 var json = _recognizer.Result();
                 EmitText(json);
             }
-            else
-            {
-                // partial можна ігнорувати, щоб не засмічувати текстове поле
-                // var p = _recognizer.PartialResult();
-            }
         }
 
         private void EmitText(string json)

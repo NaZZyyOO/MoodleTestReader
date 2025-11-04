@@ -8,20 +8,15 @@ namespace MoodleTestReader.Models
         public string TestName { get; set; }
         public List<Question> Questions { get; set; } = new List<Question>();
         public int TimeLimit { get; set; } // в хвилинах
+        public int AuthorId { get; set; }
 
-        public Test(int id, string testName, List<Question> questions, int timeLimit)
+        public Test(int authorId, int id, string testName, List<Question> questions, int timeLimit)
         {
+            AuthorId = authorId;
             Id = id;
             TestName = testName;
             Questions = questions;
             TimeLimit = timeLimit;
-            
-        }
-        public Test(int id, string testName, List<Question> questions)
-        {
-            Id = id;
-            TestName = testName;
-            Questions = questions;
         }
     }
 }

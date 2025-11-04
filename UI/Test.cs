@@ -133,6 +133,18 @@ namespace MoodleTestReader.UI
             }
         }
         
+        private void ButtonTestManager_Click(object? sender, EventArgs e)
+        {
+            if (_currentUser == null) return;
+            using (var dlg = new TestManagerForm(_currentUser))
+            {
+                dlg.StartPosition = FormStartPosition.CenterParent;
+                dlg.ShowDialog(this);
+                // Після закриття — оновити список тестів на екрані вибору
+                LoadAvailableTests();
+            }
+        }
+        
         // Завантажити всі наявні тести в ComboBox
         // Можна покращити змінивши отримання всіх наявних тестів
         // на отримання всіх доступних тестів для користувача
