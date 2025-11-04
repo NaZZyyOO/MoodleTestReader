@@ -29,26 +29,26 @@ partial class Register
 
         // labelNewUsername
         this.labelNewUsername.AutoSize = true;
-        this.labelNewUsername.Location = new System.Drawing.Point(30, 30);
+        this.labelNewUsername.Location = new System.Drawing.Point(10, 30);
         this.labelNewUsername.Name = "labelNewUsername";
         this.labelNewUsername.Size = new System.Drawing.Size(55, 13);
         this.labelNewUsername.Text = "Логін:";
 
         // textBoxNewUsername
-        this.textBoxNewUsername.Location = new System.Drawing.Point(100, 27);
+        this.textBoxNewUsername.Location = new System.Drawing.Point(130, 27);
         this.textBoxNewUsername.Name = "textBoxNewUsername";
         this.textBoxNewUsername.Size = new System.Drawing.Size(150, 20);
         this.textBoxNewUsername.TabIndex = 0;
 
         // labelNewPassword
         this.labelNewPassword.AutoSize = true;
-        this.labelNewPassword.Location = new System.Drawing.Point(30, 60);
+        this.labelNewPassword.Location = new System.Drawing.Point(10, 60);
         this.labelNewPassword.Name = "labelNewPassword";
         this.labelNewPassword.Size = new System.Drawing.Size(55, 13);
         this.labelNewPassword.Text = "Пароль:";
 
         // textBoxNewPassword
-        this.textBoxNewPassword.Location = new System.Drawing.Point(100, 57);
+        this.textBoxNewPassword.Location = new System.Drawing.Point(130, 57);
         this.textBoxNewPassword.Name = "textBoxNewPassword";
         this.textBoxNewPassword.Size = new System.Drawing.Size(150, 20);
         this.textBoxNewPassword.TabIndex = 1;
@@ -56,13 +56,13 @@ partial class Register
 
         // labelConfirmPassword
         this.labelConfirmPassword.AutoSize = true;
-        this.labelConfirmPassword.Location = new System.Drawing.Point(30, 90);
+        this.labelConfirmPassword.Location = new System.Drawing.Point(10, 90);
         this.labelConfirmPassword.Name = "labelConfirmPassword";
         this.labelConfirmPassword.Size = new System.Drawing.Size(80, 13);
         this.labelConfirmPassword.Text = "Підтвердити пароль:";
 
         // textBoxConfirmPassword
-        this.textBoxConfirmPassword.Location = new System.Drawing.Point(100, 87);
+        this.textBoxConfirmPassword.Location = new System.Drawing.Point(130, 87);
         this.textBoxConfirmPassword.Name = "textBoxConfirmPassword";
         this.textBoxConfirmPassword.Size = new System.Drawing.Size(150, 20);
         this.textBoxConfirmPassword.TabIndex = 2;

@@ -29,17 +29,13 @@ namespace MoodleTestReader.UI
 
             _dictation = new TestDictationService(this);
 
-            if (_currentUser != null)
-            {
-
-                _voiceCmd = new VoskCommandService(
-                    this,
-                    OnVoiceCommand,
-                    () => _testManager?.GetAvailableTests().Select(t => t.TestName).ToList() ?? new List<string>(),
-                    () => _testManager?.GetCurrentQuestionForUser(_currentUser),
-                    () => questionPanel
-                );
-            }
+            _voiceCmd = new VoskCommandService(
+                this,
+                OnVoiceCommand,
+                () => _testManager?.GetAvailableTests().Select(t => t.TestName).ToList() ?? new List<string>(),
+                () => _testManager?.GetCurrentQuestionForUser(_currentUser),
+                () => questionPanel
+            );
 
             if (recognitionLabel != null)
             {
@@ -118,13 +114,6 @@ namespace MoodleTestReader.UI
                 _voiceCmd.OnSelectionScreen();
                 _voiceCmd.SetActive(_dictation.IsEnabled);
                 _dictation.OnTestSelected();
-
-                if (recognitionLabel != null)
-                {
-                    recognitionLabel.Visible = true;
-                    recognitionLabel.Text = "Розпізнавання…";
-                    recognitionLabel.ForeColor = Color.DimGray;
-                }
                 
                 // Показати кнопку управління ролями лише для адміна
                 buttonManageRoles.Visible = IsAdmin();

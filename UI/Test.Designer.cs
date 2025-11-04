@@ -65,7 +65,7 @@ namespace MoodleTestReader.UI
             this.recognitionLabel.AutoSize = true;
             this.recognitionLabel.ForeColor = Color.DimGray;
             this.recognitionLabel.Text = "Розпізнавання…";
-            this.recognitionLabel.Visible = true;
+            this.recognitionLabel.Visible = false;
             
             // questionPanel
             this.questionPanel.Name = "questionPanel";
