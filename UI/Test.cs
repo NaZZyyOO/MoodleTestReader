@@ -158,7 +158,8 @@ namespace MoodleTestReader.UI
             }
             
             // Розпочинаємо сесію тесту за допомогою тестового менеджера
-            _testManager.StartTestForUser(_currentUser, currentTest.Id);
+            if (!_testManager.StartTestForUser(_currentUser, currentTest.Id)) return;
+            
             _remainingTime = currentTest.TimeLimit * 60;
             labelTime.Text = $"Залишилось: {currentTest.TimeLimit}:00";
             comboBoxTests.Visible = false;
@@ -208,13 +209,6 @@ namespace MoodleTestReader.UI
                 _voiceCmd.OnSelectionScreen();
                 _voiceCmd.SetActive(_dictation.IsEnabled);
 
-                if (recognitionLabel != null)
-                {
-                    recognitionLabel.Visible = true;
-                    recognitionLabel.Text = "Розпізнавання…";
-                    recognitionLabel.ForeColor = Color.DimGray;
-                }
-
                 MessageBox.Show(
                     $"Тест завершено. Ваш результат: {score} балів. Залишковий час: {TimeSpan.FromSeconds(_remainingTime):mm\\:ss}");
                 return;
@@ -254,9 +248,7 @@ namespace MoodleTestReader.UI
         private async void NextButton_Click(object? sender, EventArgs e)
         {
             var question = _testManager.GetCurrentQuestionForUser(_currentUser);
-            var answer = question != null 
-                ? UIHelper.ExtractAnswerFromQuestionPanel(questionPanel, question)
-                : null;
+            var answer = UIHelper.ExtractAnswerFromQuestionPanel(questionPanel, question);
             
             if (answer == null || (answer is List<string> list && list.Count == 0) || (answer is string s && string.IsNullOrWhiteSpace(s)))
             {

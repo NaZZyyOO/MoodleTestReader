@@ -30,23 +30,25 @@ namespace MoodleTestReader.Logic
             return _testTemplates.Values.ToList();
         }
 
-        public void StartTestForUser(User user, int testId)
+        public bool StartTestForUser(User user, int testId)
         {
             if (user.IsProfessor)
             {
                 MessageBox.Show("Користувач є викладачем. Тести можуть проходити лише студенти.");
-                return;
+                return false;
             }
             if (!_testTemplates.TryGetValue(testId, out var testTemplate))
             {
                 MessageBox.Show("Тест не знайдено.");
-                return;
+                return false;
             }
 
             var selectedQuestions = testTemplate.Questions;
 
             var session = new TestSession(testTemplate, selectedQuestions);
             _userSessions[user.Id] = session;
+
+            return true;
         }
 
         public Question GetCurrentQuestionForUser(User user)

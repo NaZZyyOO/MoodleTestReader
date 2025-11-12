@@ -46,7 +46,7 @@ namespace MoodleTestReader.UI
             this.buttonReviewTest.Name = "buttonReviewTest";
             this.buttonReviewTest.Width = 100;
             this.buttonReviewTest.Size = new System.Drawing.Size(100, 23);
-            this.buttonReviewTest.Text = "Огляд тесту";
+            this.buttonReviewTest.Text = "Перегляд тесту";
             this.buttonReviewTest.UseVisualStyleBackColor = true;
             this.buttonReviewTest.Visible = false;
             this.buttonReviewTest.Click += new System.EventHandler(this.TestReview_Click);

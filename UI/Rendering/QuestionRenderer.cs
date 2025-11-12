@@ -29,6 +29,13 @@ namespace MoodleTestReader.UI.Rendering
         {
             container.Controls.Clear();
 
+            // Нормалізація типу відповіді, приймаємо як короткі ("multi"), так і повні ("MultipleChoice") назви
+            string uaType = (userAnswer?.Type ?? "").Trim().ToLowerInvariant();
+            bool isSingle = uaType == "single" || uaType == "singlechoice";
+            bool isMulti = uaType == "multi" || uaType == "multiplechoice" || uaType == "mcq";
+            bool isText = uaType == "text" || uaType == "fillinblank" || uaType == "fib";
+            bool isBool = uaType == "bool" || uaType == "truefalse" || uaType == "tf";
+
             int y;
             if (includeQuestionTitle)
             {
@@ -62,7 +69,15 @@ namespace MoodleTestReader.UI.Rendering
                         if (mode == QuestionRenderMode.Review)
                         {
                             chk.Enabled = false;
-                            chk.Checked = userAnswer?.Type == "multi" && userAnswer.List != null && userAnswer.List.Contains(option);
+
+                            // Позначення без урахування регістру; приймаємо тільки коли це multi-відповідь
+                            bool selected = false;
+                            if (isMulti && userAnswer?.List != null)
+                            {
+                                selected = userAnswer.List.Any(v =>
+                                    string.Equals(v ?? "", option ?? "", StringComparison.OrdinalIgnoreCase));
+                            }
+                            chk.Checked = selected;
                         }
 
                         container.Controls.Add(chk);
@@ -76,13 +91,17 @@ namespace MoodleTestReader.UI.Rendering
                     var tb = new TextBox
                     {
                         Location = new Point(10, y),
-                        Width = 400
+                        Width = 500
                     };
 
                     if (mode == QuestionRenderMode.Review)
                     {
                         tb.ReadOnly = true;
-                        tb.Text = userAnswer?.Type == "text" ? (userAnswer.Text ?? string.Empty) : string.Empty;
+                        // Приймаємо "text" та також синонім "fillinblank"
+                        if (isText)
+                            tb.Text = userAnswer?.Text ?? string.Empty;
+                        else
+                            tb.Text = userAnswer?.Text ?? string.Empty; // фолбек, якщо тип не виставили
                     }
 
                     container.Controls.Add(tb);
@@ -99,8 +118,21 @@ namespace MoodleTestReader.UI.Rendering
                     {
                         rTrue.Enabled = false;
                         rFalse.Enabled = false;
-                        rTrue.Checked = userAnswer?.Type == "bool" && userAnswer.Bool == true;
-                        rFalse.Checked = userAnswer?.Type == "bool" && userAnswer.Bool == false;
+
+                        bool? val = null;
+                        if (isBool)
+                        {
+                            val = userAnswer?.Bool;
+                            // фолбек: іноді в текст може прийти "true"/"false"
+                            if (val == null && !string.IsNullOrWhiteSpace(userAnswer?.Text))
+                            {
+                                if (bool.TryParse(userAnswer.Text, out var parsed))
+                                    val = parsed;
+                            }
+                        }
+
+                        rTrue.Checked = val == true;
+                        rFalse.Checked = val == false;
                     }
 
                     container.Controls.Add(rTrue);
@@ -111,14 +143,25 @@ namespace MoodleTestReader.UI.Rendering
 
                 default:
                 {
+                    // SingleChoice
                     foreach (var option in q.Options)
                     {
                         var rb = new RadioButton { Text = option, Location = new Point(10, y), AutoSize = true };
                         if (mode == QuestionRenderMode.Review)
                         {
                             rb.Enabled = false;
-                            rb.Checked = userAnswer?.Type == "single"
-                                         && string.Equals(userAnswer.Text, option, StringComparison.OrdinalIgnoreCase);
+
+                            // Позначаємо, якщо це single-відповідь, або фолбек якщо тип не виставлений, але є текст
+                            bool selected = false;
+                            var uaText = userAnswer?.Text ?? string.Empty;
+
+                            if (isSingle || string.IsNullOrWhiteSpace(uaType))
+                            {
+                                selected = !string.IsNullOrEmpty(uaText) &&
+                                           string.Equals(uaText, option, StringComparison.OrdinalIgnoreCase);
+                            }
+
+                            rb.Checked = selected;
                         }
                         container.Controls.Add(rb);
                         y += 28;
