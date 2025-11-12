@@ -37,13 +37,6 @@ namespace MoodleTestReader.UI
                 () => questionPanel
             );
 
-            if (recognitionLabel != null)
-            {
-                recognitionLabel.Visible = true;
-                recognitionLabel.Text = "Розпізнавання…";
-                recognitionLabel.ForeColor = Color.DimGray;
-            }
-
             _voiceCmd.RecognizedNonCommandText += (_, txt) =>
             {
                 try
@@ -67,22 +60,10 @@ namespace MoodleTestReader.UI
                 if (comboBoxTests.Visible)
                 {
                     _voiceCmd.OnSelectionScreen();
-                    if (recognitionLabel != null)
-                    {
-                        recognitionLabel.Visible = true;
-                        recognitionLabel.Text = "Розпізнавання…";
-                        recognitionLabel.ForeColor = Color.DimGray;
-                    }
                 }
                 else
                 {
                     _voiceCmd.OnTestStarted(enabled);
-                    if (recognitionLabel != null)
-                    {
-                        recognitionLabel.Visible = enabled;
-                        recognitionLabel.Text = "Розпізнавання…";
-                        recognitionLabel.ForeColor = Color.DimGray;
-                    }
                 }
             };
 
@@ -117,6 +98,7 @@ namespace MoodleTestReader.UI
                 
                 // Показати кнопку управління ролями лише для адміна
                 buttonManageRoles.Visible = IsAdmin();
+                buttonTestManager.Visible = _currentUser.IsProfessor;
             }
             else
             {
@@ -310,13 +292,6 @@ namespace MoodleTestReader.UI
                 }
 
                 _dictation.OnTestSelected();
-
-                if (recognitionLabel != null)
-                {
-                    recognitionLabel.Visible = true;
-                    recognitionLabel.Text = "Розпізнавання…";
-                    recognitionLabel.ForeColor = Color.DimGray;
-                }
             }
         }
         

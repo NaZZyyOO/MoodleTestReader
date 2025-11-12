@@ -84,7 +84,7 @@ namespace MoodleTestReader.UI
 
             foreach (var t in tests)
             {
-                var userName = DataLoader.GetUserById(t.AuthorId).Username;
+                var userName = DataLoader.GetUserById(t.AuthorId)?.Username;
                 table.Rows.Add(t.Id, t.TestName, userName);
             }
 
@@ -154,10 +154,16 @@ namespace MoodleTestReader.UI
                 return;
             }
 
+            if (t.AuthorId != _currentUser.Id)
+            {
+                MessageBox.Show("Ви не є автором цього тесту!");
+                return;
+            }
+
             using var editor = new TestEditorForm(t);
             if (editor.ShowDialog(this) == DialogResult.OK)
             {
-                // Після збереження — оновити грід
+                // Після збереження — оновити таблицю
                 LoadTests();
             }
         }

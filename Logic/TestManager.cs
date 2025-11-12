@@ -34,11 +34,13 @@ namespace MoodleTestReader.Logic
         {
             if (user.IsProfessor)
             {
-                throw new Exception("Користувач є викладачем. Тести можуть проходити лише студенти.");
+                MessageBox.Show("Користувач є викладачем. Тести можуть проходити лише студенти.");
+                return;
             }
             if (!_testTemplates.TryGetValue(testId, out var testTemplate))
             {
-                throw new Exception("Тест не знайдено.");
+                MessageBox.Show("Тест не знайдено.");
+                return;
             }
 
             var selectedQuestions = testTemplate.Questions;

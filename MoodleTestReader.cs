@@ -13,9 +13,9 @@ static class MoodleTestReader
         // Встановити кодування консолі на UTF-8
         Console.OutputEncoding = Encoding.UTF8;
         Console.InputEncoding = Encoding.UTF8;
-        var tests = new List<Models.Test>();
 
         /*var test = new Models.Test(
+            1,
             1,
             "Тест з C#",
             new List<Question> {
@@ -41,8 +41,7 @@ static class MoodleTestReader
             },
             10
             );
-        tests.Add(test);
-        DataLoader.SaveTests(tests);*/
+        DataLoader.SaveTest(test);*/
         Console.WriteLine("Тести збережено в БД.");
         DataLoader.InitializeDatabase();
         ApplicationConfiguration.Initialize();

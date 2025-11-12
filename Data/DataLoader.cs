@@ -173,7 +173,7 @@ namespace MoodleTestReader.Data
             using (var connection = new MySqlConnection(ConnectionString))
             {
                 connection.Open();
-                const string query = "SELECT Id, TestName, TimeLimit FROM Tests";
+                const string query = "SELECT Id, TestName, TimeLimit, AuthorId FROM Tests";
                 using (var command = new MySqlCommand(query, connection))
                 {
                     using (var reader = command.ExecuteReader())
@@ -284,101 +284,86 @@ namespace MoodleTestReader.Data
             return new Test(authorId, newId, name, new List<Question>(), timeLimit);
         }
 
-        public static void SaveTests(List<Test> tests)
+        // Заміни поточну реалізацію SaveTests на цю
+        public static void SaveTest(Test test)
         {
-            using (var connection = new MySqlConnection(ConnectionString))
+            using var connection = new MySqlConnection(ConnectionString);
+            connection.Open();
+
+            // 1) Upsert самого тесту (включно з AuthorId)
+            const string upsertTest = @"
+                INSERT INTO Tests (Id, TestName, TimeLimit, AuthorId)
+                VALUES (@id, @name, @limit, @author)
+                ON DUPLICATE KEY UPDATE
+                    TestName = @name,
+                    TimeLimit = @limit,
+                    AuthorId  = @author";
+            using (var cmd = new MySqlCommand(upsertTest, connection))
             {
-                connection.Open();
-                foreach (var test in tests)
+                cmd.Parameters.AddWithValue("@id", test.Id == 0 ? (object)DBNull.Value : test.Id);
+                cmd.Parameters.AddWithValue("@name", test.TestName ?? "");
+                cmd.Parameters.AddWithValue("@limit", test.TimeLimit);
+                cmd.Parameters.AddWithValue("@author",
+                    test.AuthorId == 0 ? (object)DBNull.Value : test.AuthorId);
+
+                cmd.ExecuteNonQuery();
+
+                if (test.Id == 0)
                 {
-                    const string testQuery = @"
-                        INSERT INTO Tests (Id, TestName, TimeLimit) VALUES (@id, @testName, @timeLimit)
-                        ON DUPLICATE KEY UPDATE TestName = @testName, TimeLimit = @timeLimit";
-                    using (var command = new MySqlCommand(testQuery, connection))
-                    {
-                        command.Parameters.AddWithValue("@authorId", test.AuthorId);
-                        command.Parameters.AddWithValue("@id", test.Id == 0 ? null : test.Id);
-                        command.Parameters.AddWithValue("@testName", test.TestName);
-                        command.Parameters.AddWithValue("@timeLimit", test.TimeLimit);
-                        command.ExecuteNonQuery();
-                        Console.WriteLine($"Test {test.TestName} saved with Id {test.Id}");
-
-                        if (test.Id == 0)
-                        {
-                            command.CommandText = "SELECT LAST_INSERT_ID()";
-                            test.Id = Convert.ToInt32(command.ExecuteScalar());
-                        }
-                    }
-
-                    Console.WriteLine($"Saving {test.Questions.Count} questions for Test {test.TestName} (Id: {test.Id})");
-                    foreach (var question in test.Questions)
-                    {
-                        string type;
-                        string correctAnswer = null;
-                        string correctAnswers = null;
-                        var options = JsonSerializer.Serialize(question.Options);
-
-                        switch (question)
-                        {
-                            case MultipleChoiceQuestion mcq:
-                                type = "MultipleChoice";
-                                correctAnswers = JsonSerializer.Serialize(mcq.CorrectAnswers);
-                                break;
-                            case FillInBlankQuestion fibq:
-                                type = "FillInBlank";
-                                correctAnswers = JsonSerializer.Serialize(fibq.CorrectAnswers);
-                                break;
-                            case TrueFalseQuestion tfq:
-                                type = "TrueFalse";
-                                correctAnswer = tfq.Answer.ToString();
-                                break;
-                            default:
-                                type = "SingleChoice";
-                                correctAnswer = question.CorrectAnswer;
-                                break;
-                        }
-
-                        const string questionQuery = @"
-                            INSERT INTO Questions (Id, TestId, Type, Description, CorrectAnswer, CorrectAnswers, Points, Options)
-                            VALUES (@id, @testId, @type, @description, @correctAnswer, @correctAnswers, @points, @options)
-                            ON DUPLICATE KEY UPDATE
-                                TestId = @testId,
-                                Type = @type,
-                                Description = @description,
-                                CorrectAnswer = @correctAnswer,
-                                CorrectAnswers = @correctAnswers,
-                                Points = @points,
-                                Options = @options";
-                        using (var command = new MySqlCommand(questionQuery, connection))
-                        {
-                            command.Parameters.AddWithValue("@id", question.Id == 0 ? null : question.Id);
-                            command.Parameters.AddWithValue("@testId", test.Id);
-                            command.Parameters.AddWithValue("@type", type);
-                            command.Parameters.AddWithValue("@description", question.question);
-                            command.Parameters.AddWithValue("@correctAnswer", (object)correctAnswer ?? DBNull.Value);
-                            command.Parameters.AddWithValue("@correctAnswers", (object)correctAnswers ?? DBNull.Value);
-                            command.Parameters.AddWithValue("@points", question.Points);
-                            command.Parameters.AddWithValue("@options", options);
-                            try
-                            {
-                                command.ExecuteNonQuery();
-                                if (question.Id == 0)
-                                {
-                                    command.CommandText = "SELECT LAST_INSERT_ID()";
-                                    question.Id = Convert.ToInt32(command.ExecuteScalar());
-                                }
-                                Console.WriteLine($"Question '{question.question}' saved with Id {question.Id} for TestId {test.Id}");
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine($"Error saving question '{question.question}': {ex.Message}");
-                                throw;
-                            }
-                        }
-                    }
+                    cmd.CommandText = "SELECT LAST_INSERT_ID()";
+                    test.Id = Convert.ToInt32(cmd.ExecuteScalar());
                 }
             }
+
+            // 2) Видалити старі питання цього тесту
+            using (var del = new MySqlCommand("DELETE FROM Questions WHERE TestId = @tid", connection))
+            {
+                del.Parameters.AddWithValue("@tid", test.Id);
+                del.ExecuteNonQuery();
+            }
+
+            // 3) Вставити поточні питання (усі як нові, Id будуть нові)
+            const string insertQ = @"
+                INSERT INTO Questions (TestId, Type, Description, CorrectAnswer, CorrectAnswers, Points, Options)
+                VALUES (@testId, @type, @desc, @correctAnswer, @correctAnswers, @points, @options)";
+            foreach (var q in test.Questions)
+            {
+                string type;
+                string? correctAnswer = null;
+                string? correctAnswers = null;
+
+                switch (q)
+                {
+                    case MultipleChoiceQuestion mc:
+                        type = "MultipleChoice";
+                        correctAnswers = JsonSerializer.Serialize(mc.CorrectAnswers ?? new List<string>());
+                        break;
+                    case FillInBlankQuestion fib:
+                        type = "FillInBlank";
+                        correctAnswers = JsonSerializer.Serialize(fib.CorrectAnswers ?? new List<string>());
+                        break;
+                    case TrueFalseQuestion tf:
+                        type = "TrueFalse";
+                        correctAnswer = tf.Answer.ToString();
+                        break;
+                    default:
+                        type = "SingleChoice";
+                        correctAnswer = q.CorrectAnswer;
+                        break;
+                }
+
+                using var cmdQ = new MySqlCommand(insertQ, connection);
+                cmdQ.Parameters.AddWithValue("@testId", test.Id);
+                cmdQ.Parameters.AddWithValue("@type", type);
+                cmdQ.Parameters.AddWithValue("@desc", q.question ?? "");
+                cmdQ.Parameters.AddWithValue("@correctAnswer", (object?)correctAnswer ?? DBNull.Value);
+                cmdQ.Parameters.AddWithValue("@correctAnswers", (object?)correctAnswers ?? DBNull.Value);
+                cmdQ.Parameters.AddWithValue("@points", q.Points);
+                cmdQ.Parameters.AddWithValue("@options", JsonSerializer.Serialize(q.Options ?? new List<string>()));
+                cmdQ.ExecuteNonQuery();
+            }
         }
+        
 
         public static void SaveTestResult(TestResult result)
         {

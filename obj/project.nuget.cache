@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "PKy1Lcy0EQk=",
+  "dgSpecHash": "aa3SdKxaEVU=",
   "success": true,
   "projectFilePath": "C:\\Users\\Vlad\\RiderProjects\\CourseworkProgramming\\MoodleTestReader\\MoodleTestReader.csproj",
   "expectedPackageFiles": [
@@ -38,7 +38,6 @@
     "C:\\Users\\Vlad\\.nuget\\packages\\system.security.cryptography.protecteddata\\8.0.0\\system.security.cryptography.protecteddata.8.0.0.nupkg.sha512",
     "C:\\Users\\Vlad\\.nuget\\packages\\system.security.permissions\\8.0.0\\system.security.permissions.8.0.0.nupkg.sha512",
     "C:\\Users\\Vlad\\.nuget\\packages\\system.security.principal.windows\\4.7.0\\system.security.principal.windows.4.7.0.nupkg.sha512",
-    "C:\\Users\\Vlad\\.nuget\\packages\\system.speech\\10.0.0-rc.2.25502.107\\system.speech.10.0.0-rc.2.25502.107.nupkg.sha512",
     "C:\\Users\\Vlad\\.nuget\\packages\\system.text.encoding\\4.3.0\\system.text.encoding.4.3.0.nupkg.sha512",
     "C:\\Users\\Vlad\\.nuget\\packages\\system.text.encoding.codepages\\8.0.0\\system.text.encoding.codepages.8.0.0.nupkg.sha512",
     "C:\\Users\\Vlad\\.nuget\\packages\\system.text.json\\9.0.0\\system.text.json.9.0.0.nupkg.sha512",

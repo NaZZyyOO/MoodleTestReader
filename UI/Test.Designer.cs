@@ -61,7 +61,7 @@ namespace MoodleTestReader.UI
             this.buttonManageRoles.Click += new System.EventHandler(this.ButtonManageRoles_Click);
             
             // buttonTestManager (professor only)
-            this.buttonTestManager.Location = new System.Drawing.Point(580, 40);
+            this.buttonTestManager.Location = new System.Drawing.Point(400, 60);
             this.buttonTestManager.Name = "buttonTestManager";
             this.buttonTestManager.Size = new System.Drawing.Size(160, 23);
             this.buttonTestManager.Text = "Менеджер тестів";
@@ -101,6 +101,7 @@ namespace MoodleTestReader.UI
             this.Controls.Add(this.comboBoxTests);
             this.Controls.Add(this.buttonStartTest);
             this.Controls.Add(this.buttonManageRoles);
+            this.Controls.Add(this.buttonTestManager);
             this.Controls.Add(this.labelTime);
             this.Controls.Add(this.buttonReviewTest);
             this.Controls.Add(this.recognitionLabel);

@@ -16,6 +16,21 @@ namespace MoodleTestReader.UI
             numTime.Value = Math.Max(1, _test.TimeLimit <= 0 ? 30 : _test.TimeLimit);
             BuildQuestionGrid();
             LoadQuestions();
+            
+            gridQuestions.RowHeadersWidth = 50;
+            gridQuestions.RowPostPaint += GridQuestions_RowPostPaint;
+        }
+        
+        private void GridQuestions_RowPostPaint(object? sender, DataGridViewRowPostPaintEventArgs e)
+        {
+            // малюємо номер (1-based) у заголовку рядка
+            var index = (e.RowIndex + 1).ToString();
+            var bounds = new Rectangle(e.RowBounds.Left, e.RowBounds.Top, gridQuestions.RowHeadersWidth, e.RowBounds.Height);
+
+            TextRenderer.DrawText(e.Graphics, index,
+                gridQuestions.Font, bounds,
+                SystemColors.ControlText,
+                TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter);
         }
 
         private void BuildQuestionGrid()
@@ -192,7 +207,7 @@ namespace MoodleTestReader.UI
 
             try
             {
-                DataLoader.SaveTests(new List<Models.Test> { _test });
+                DataLoader.SaveTest(_test);
                 MessageBox.Show("Збережено.");
                 DialogResult = DialogResult.OK;
                 Close();
