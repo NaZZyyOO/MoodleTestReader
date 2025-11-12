@@ -97,7 +97,7 @@ namespace MoodleTestReader.UI
             // TestForm
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(600, 400);
+            this.ClientSize = new System.Drawing.Size(600, 500);
             this.Controls.Add(this.comboBoxTests);
             this.Controls.Add(this.buttonStartTest);
             this.Controls.Add(this.buttonManageRoles);

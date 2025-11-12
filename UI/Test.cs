@@ -416,13 +416,6 @@ namespace MoodleTestReader.UI
                 comboBoxTests.Visible = true;
                 TestReview(null, EventArgs.Empty);
                 labelTime.Visible = false;
-
-                if (recognitionLabel != null)
-                {
-                    recognitionLabel.Visible = true;
-                    recognitionLabel.Text = "Розпізнавання…";
-                    recognitionLabel.ForeColor = Color.DimGray;
-                }
             };
             reviewFlow.Controls.Add(btnClose);
         }
