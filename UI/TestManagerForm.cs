@@ -84,8 +84,11 @@ namespace MoodleTestReader.UI
 
             foreach (var t in tests)
             {
-                var userName = DataLoader.GetUserById(t.AuthorId)?.Username;
-                table.Rows.Add(t.Id, t.TestName, userName);
+                if (_currentUser.ProfessorsTests.Contains(t.Id))
+                {
+                    var userName = DataLoader.GetUserById(t.AuthorId)?.Username;
+                    table.Rows.Add(t.Id, t.TestName, userName);
+                }
             }
 
             gridTests.DataSource = table;

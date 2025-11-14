@@ -5,7 +5,7 @@ using Newtonsoft.Json.Linq;
 
 namespace MoodleTestReader.Speech
 {
-    // Розпізнавання вільного мовлення (диктація) через Vosk + NAudio
+    // Розпізнавання вільного мовлення (диктування) через Vosk + NAudio
     public class VoskSpeechRecognizer : IDisposable
     {
         private readonly string _modelPath;
