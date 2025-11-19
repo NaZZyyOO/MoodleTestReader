@@ -77,6 +77,7 @@ namespace MoodleTestReader.UI
         private void LoadTests()
         {
             var tests = DataLoader.GetAvailableTests();
+
             var table = new DataTable();
             table.Columns.Add("Id", typeof(int));
             table.Columns.Add("TestName", typeof(string));
@@ -84,9 +85,9 @@ namespace MoodleTestReader.UI
 
             foreach (var t in tests)
             {
-                if (_currentUser.ProfessorsTests.Contains(t.Id))
+                if (t.AuthorId == _currentUser.Id)
                 {
-                    var userName = DataLoader.GetUserById(t.AuthorId)?.Username;
+                    var userName = DataLoader.GetUserById(t.AuthorId)?.Username ?? "(автор?)";
                     table.Rows.Add(t.Id, t.TestName, userName);
                 }
             }

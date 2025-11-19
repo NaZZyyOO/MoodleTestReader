@@ -202,6 +202,7 @@ namespace MoodleTestReader.UI
                 comboBoxTests.Visible = true;
                 buttonStartTest.Visible = true;
                 labelTime.Visible = false;
+                recognitionLabel.Visible = false;
 
                 await _dictation.OnTestFinishedAsync(score);
 
@@ -224,7 +225,8 @@ namespace MoodleTestReader.UI
                 headerPrefix: null
             );
 
-            var buttonNext = new Button { Text = "Наступне", Location = new Point(10, 240), Width = 150, Height = 30 };
+            var buttonNext = new Button
+                { Text = "Наступне", Location = new Point(10, 240), Width = 150, Height = 30 };
             buttonNext.Click += NextButton_Click;
             questionPanel.Controls.Add(buttonNext);
 
