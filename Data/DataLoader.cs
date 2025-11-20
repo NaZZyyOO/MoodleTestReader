@@ -6,6 +6,7 @@ using MoodleTestReader.Logic;
 using MoodleTestReader.Models.Results;
 using Newtonsoft.Json;
 using JsonSerializer = System.Text.Json.JsonSerializer;
+using TestResult = MoodleTestReader.Models.Results.TestResult;
 
 namespace MoodleTestReader.Data
 {

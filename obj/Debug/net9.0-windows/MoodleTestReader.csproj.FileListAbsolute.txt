@@ -42,3 +42,5 @@ C:\Users\Vlad\RiderProjects\CourseworkProgramming\MoodleTestReader\bin\Debug\net
 C:\Users\Vlad\RiderProjects\CourseworkProgramming\MoodleTestReader\bin\Debug\net9.0-windows\NAudio.WinForms.dll
 C:\Users\Vlad\RiderProjects\CourseworkProgramming\MoodleTestReader\bin\Debug\net9.0-windows\NAudio.WinMM.dll
 C:\Users\Vlad\RiderProjects\CourseworkProgramming\MoodleTestReader\bin\Debug\net9.0-windows\Vosk.dll
+C:\Users\Vlad\RiderProjects\CourseworkProgramming\MoodleTestReader\bin\Debug\net9.0-windows\nunit.framework.dll
+C:\Users\Vlad\RiderProjects\CourseworkProgramming\MoodleTestReader\bin\Debug\net9.0-windows\nunit.framework.legacy.dll

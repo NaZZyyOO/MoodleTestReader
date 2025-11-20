@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "aa3SdKxaEVU=",
+  "dgSpecHash": "Jsmc08TDCDA=",
   "success": true,
   "projectFilePath": "C:\\Users\\Vlad\\RiderProjects\\CourseworkProgramming\\MoodleTestReader\\MoodleTestReader.csproj",
   "expectedPackageFiles": [
@@ -23,6 +23,7 @@
     "C:\\Users\\Vlad\\.nuget\\packages\\naudio.winforms\\2.2.1\\naudio.winforms.2.2.1.nupkg.sha512",
     "C:\\Users\\Vlad\\.nuget\\packages\\naudio.winmm\\2.2.1\\naudio.winmm.2.2.1.nupkg.sha512",
     "C:\\Users\\Vlad\\.nuget\\packages\\newtonsoft.json\\13.0.4\\newtonsoft.json.13.0.4.nupkg.sha512",
+    "C:\\Users\\Vlad\\.nuget\\packages\\nunit\\4.4.0\\nunit.4.4.0.nupkg.sha512",
     "C:\\Users\\Vlad\\.nuget\\packages\\system.buffers\\4.5.1\\system.buffers.4.5.1.nupkg.sha512",
     "C:\\Users\\Vlad\\.nuget\\packages\\system.configuration.configurationmanager\\8.0.0\\system.configuration.configurationmanager.8.0.0.nupkg.sha512",
     "C:\\Users\\Vlad\\.nuget\\packages\\system.diagnostics.diagnosticsource\\8.0.1\\system.diagnostics.diagnosticsource.8.0.1.nupkg.sha512",

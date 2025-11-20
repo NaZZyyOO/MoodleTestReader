@@ -1,6 +1,7 @@
 using MoodleTestReader.Data;
 using MoodleTestReader.Models;
 using MoodleTestReader.Models.Results;
+using TestResult = MoodleTestReader.Models.Results.TestResult;
 
 namespace MoodleTestReader.Logic
 {

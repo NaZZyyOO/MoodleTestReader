@@ -1,4 +1,5 @@
 using MoodleTestReader.Models.Results;
+using TestResult = MoodleTestReader.Models.Results.TestResult;
 
 namespace MoodleTestReader.Models
 {

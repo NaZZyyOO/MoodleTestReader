@@ -23,6 +23,7 @@
       </Compile>
       <PackageReference Include="NAudio" Version="2.2.1" />
       <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+      <PackageReference Include="NUnit" Version="4.4.0" />
       <PackageReference Include="Vosk" Version="0.3.38" />
       <Compile Update="UI\AdminRolesForm.cs">
         <SubType>Form</SubType>
